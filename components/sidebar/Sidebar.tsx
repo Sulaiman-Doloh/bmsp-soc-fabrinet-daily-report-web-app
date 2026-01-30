@@ -2,13 +2,15 @@
 "use client";
 
 import React, { useState } from 'react';
+import { useReport } from '@/context/ReportContext';
 
 export default function Sidebar() {
   const [isReportSocOpen, setIsReportSocOpen] = useState(true);
   const [activeReport, setActiveReport] = useState('fabrinet');
   
   // เพิ่ม State สำหรับเก็บวันที่ (ค่าเริ่มต้นคือวันนี้)
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  // const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const { startDate, setStartDate, endDate, setEndDate } = useReport();
 
   const handlePrint = () => {
     window.print();
@@ -47,14 +49,25 @@ export default function Sidebar() {
             <div className="space-y-3 mt-2">
               
               {/* === เพิ่ม: ส่วนกรองวันที่ (Date Filter) === */}
-              <div className="px-2 mb-4">
-                <label className="text-[10px] text-gray-500 font-bold uppercase mb-1 block">Select Date</label>
-                <input 
-                    type="date" 
-                    value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
-                    className="w-full bg-[#0b1640] border border-gray-600 text-gray-200 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
-                />
+              <div className="px-2 mb-4 space-y-2">
+                <div>
+                  <label className="text-[10px] text-gray-500 font-bold uppercase mb-1 block">From Date</label>
+                  <input 
+                      type="date" 
+                      value={startDate} // <--- ผูกค่า
+                      onChange={(e) => setStartDate(e.target.value)} // <--- สั่งเปลี่ยนค่า
+                      className="w-full bg-[#0b1640] border border-gray-600 text-gray-200 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-500 font-bold uppercase mb-1 block">To Date</label>
+                  <input 
+                      type="date" 
+                      value={endDate} // <--- ผูกค่า
+                      onChange={(e) => setEndDate(e.target.value)} // <--- สั่งเปลี่ยนค่า
+                      className="w-full bg-[#0b1640] border border-gray-600 text-gray-200 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
+                  />
+                </div>
               </div>
 
               {/* 1.1 Fabrinet Report */}

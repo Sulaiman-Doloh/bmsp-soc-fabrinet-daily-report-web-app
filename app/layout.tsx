@@ -2,7 +2,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar"; // 1. Import Sidebar มา
+import Sidebar from "@/components/sidebar/Sidebar"; // 1. Import Sidebar มา
+import { ReportProvider } from "@/context/ReportContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,6 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <ReportProvider>
         
         {/* สร้าง Container หลักเป็น Flexbox */}
         <div className="flex min-h-screen bg-gray-100">
@@ -32,7 +34,7 @@ export default function RootLayout({
           </main>
 
         </div>
-        
+        </ReportProvider>
       </body>
     </html>
   );
