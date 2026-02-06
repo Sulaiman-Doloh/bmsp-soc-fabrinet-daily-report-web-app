@@ -8,9 +8,8 @@ export default function Sidebar() {
   const [isReportSocOpen, setIsReportSocOpen] = useState(true);
   const [activeReport, setActiveReport] = useState('fabrinet');
   
-  // เพิ่ม State สำหรับเก็บวันที่ (ค่าเริ่มต้นคือวันนี้)
-  // const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
-  const { startDate, setStartDate, endDate, setEndDate } = useReport();
+  // เรียกใช้ Context
+  const { startDate, setStartDate, setEndDate } = useReport();
 
   const handlePrint = () => {
     window.print();
@@ -21,6 +20,13 @@ export default function Sidebar() {
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
     }
+  };
+
+  // ฟังก์ชันเมื่อเปลี่ยนวันที่ (เหลือกล่องเดียว)
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedDate = e.target.value;
+    setStartDate(selectedDate); // เซ็ตวันเริ่ม
+    setEndDate(selectedDate);   // เซ็ตวันจบให้เท่ากัน (คือดูเฉพาะวันนั้นทั้งวัน)
   };
 
   return (
@@ -48,25 +54,18 @@ export default function Sidebar() {
           {isReportSocOpen && (
             <div className="space-y-3 mt-2">
               
-              {/* === เพิ่ม: ส่วนกรองวันที่ (Date Filter) === */}
-              <div className="px-2 mb-4 space-y-2">
-                <div>
-                  <label className="text-[10px] text-gray-500 font-bold uppercase mb-1 block">From Date</label>
-                  <input 
-                      type="date" 
-                      value={startDate} // <--- ผูกค่า
-                      onChange={(e) => setStartDate(e.target.value)} // <--- สั่งเปลี่ยนค่า
-                      className="w-full bg-[#0b1640] border border-gray-600 text-gray-200 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-gray-500 font-bold uppercase mb-1 block">To Date</label>
-                  <input 
-                      type="date" 
-                      value={endDate} // <--- ผูกค่า
-                      onChange={(e) => setEndDate(e.target.value)} // <--- สั่งเปลี่ยนค่า
-                      className="w-full bg-[#0b1640] border border-gray-600 text-gray-200 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
-                  />
+              {/* === แก้ไข: เหลือกล่องเดียว (Select Date) === */}
+              <div className="px-2 mb-4">
+                <div className="bg-[#0b1640] p-3 rounded-lg border border-gray-700/50 shadow-inner">
+                    <label className="text-[10px] text-blue-300 font-bold uppercase mb-2 block tracking-wider">
+                        📅 Select Report Date
+                    </label>
+                    <input 
+                        type="date" 
+                        value={startDate} 
+                        onChange={handleDateChange}
+                        className="w-full bg-[#1a234d] border border-gray-600 text-white text-sm rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 transition-all cursor-pointer hover:border-gray-500"
+                    />
                 </div>
               </div>
 

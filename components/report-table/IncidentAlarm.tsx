@@ -1,60 +1,57 @@
-// components/report-table/IncidentAlarm.tsx
 import React from 'react';
 
-// กำหนด Type ให้ตรงกับที่ API ส่งมา (สำคัญมาก)
-interface AlarmData {
-  threatType: string; // ต้องใช้ชื่อนี้ให้ตรงกับ Backend
+// ✅ แก้ไข: เปลี่ยน methodName เป็น threatType ให้ตรงกับ API
+interface AlarmItem {
+  threatType: string; 
   count: number;
 }
 
-interface IncidentAlarmProps {
-  data: AlarmData[];
+interface Props {
+  data: AlarmItem[];
 }
 
-const IncidentAlarm: React.FC<IncidentAlarmProps> = ({ data }) => {
+export default function AlarmTable({ data }: Props) {
   return (
-    <div className="w-full">
-        {/* หัวตาราง */}
-        <div className="bg-[#0b102b] text-white font-bold py-2 px-4 text-xl border border-black">
-            Incident Alarm Summary
-        </div>
-        
-        {/* ตารางข้อมูล */}
-        <table className="w-full border-collapse border-x border-b border-black">
-            <thead>
-                <tr className="bg-white">
-                    <th className="border-y border-r border-black py-2 px-4 text-left font-bold text-black w-[80%]">
-                        Threat Model Type
-                    </th>
-                    <th className="border-y border-black py-2 px-4 text-center font-bold text-black w-[20%]">
-                        Count of Incident
-                    </th>
-                </tr>
-            </thead>
-            <tbody>
-                {data.length > 0 ? (
-                    data.map((item, index) => (
-                        <tr key={index} className="border-b border-gray-300">
-                            {/* ✅ จุดที่แก้ไข: เรียกใช้ item.threatType */}
-                            <td className="border-r border-black py-2 px-4 text-black text-sm align-middle">
-                                {item.threatType || "Unknown Threat"} 
-                            </td>
-                            <td className="py-2 px-4 text-center text-black font-bold align-middle">
-                                {item.count}
-                            </td>
-                        </tr>
-                    ))
-                ) : (
-                    <tr>
-                        <td colSpan={2} className="py-4 text-center text-gray-500 italic">
-                            No incidents found
-                        </td>
-                    </tr>
-                )}
-            </tbody>
-        </table>
+    <div className="w-full mb-8 font-arapey break-inside-avoid">
+      {/* ส่วน Header: ใช้รูปภาพแทน Code เดิม */}
+      <div className="w-full">
+        <img 
+          src="/images/alarm.png" 
+          alt="Incident Alarm Summary" 
+          className="w-full h-auto block" /* block ช่วยลบช่องว่างใต้รูป */
+        />
+      </div>
+
+      {/* ตัวตาราง */}
+      {/* ลบ border-t ออก (border-t-0) เพื่อให้เส้นขอบบนของตารางไม่ซ้อนกับรูปภาพ */}
+      <table className="w-full border-collapse border border-black border-t-0 text-base">
+        <thead>
+          <tr className="bg-white text-black font-bold">
+            <th className="border border-black border-t-0 p-2 text-left w-3/4 pl-4">Threat Model Type</th>
+            <th className="border border-black border-t-0 p-2 text-center w-1/4">Count of Incident</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.length > 0 ? (
+            data.map((item, index) => (
+              <tr key={index} className="h-10">
+                {/* ✅ แก้ไข: เรียกใช้ threatType และกันเหนียวกรณีค่าว่าง */}
+                <td className="border border-black p-2 pl-4 font-bold">
+                    {item.threatType || "Unknown Threat"}
+                </td>
+                <td className="border border-black p-2 text-center font-bold">{item.count}</td>
+              </tr>
+            ))
+          ) : (
+            // กรณีไม่มีข้อมูล
+            <tr>
+                <td colSpan={2} className="border border-black p-4 text-center text-gray-500 italic">
+                    No incidents found
+                </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
-};
-
-export default IncidentAlarm;
+}

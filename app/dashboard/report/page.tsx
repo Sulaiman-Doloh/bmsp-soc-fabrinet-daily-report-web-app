@@ -128,10 +128,11 @@ export default function ReportPage() {
                     
                     {index === 0 && (
                         <div className="mt-2 mb-8 text-lg text-black font-bold space-y-1.5 leading-snug">
-                            <div className="flex"><span className="w-44 font-bold">Report Range :</span> <span className="font-normal">{startDate} to {endDate}</span></div>
-                            <div className="flex"><span className="w-44 font-bold">Report by :</span> <span className="font-normal">BMSP SOC Support</span></div>
-                            <div className="flex"><span className="w-44 font-bold">Customer Name :</span> <span className="font-normal">Fabrinet</span></div>
-                            <div className="flex"><span className="w-44 font-bold">Project Name :</span> <span className="font-normal">Fabrinet SOC</span></div>
+                            {/* ใช้ w-44 เพื่อจัดระเบียบข้อความ */}
+                            <div className="flex"><span className="w-33 font-bold">Report Range :</span> <span className="font-normal">{startDate} to {endDate}</span></div>
+                            <div className="flex"><span className="w-25 font-bold">Report by :</span> <span className="font-normal">BMSP SOC Support</span></div>
+                            <div className="flex"><span className="w-39 font-bold">Customer Name :</span> <span className="font-normal">Fabrinet</span></div>
+                            <div className="flex"><span className="w-33 font-bold">Project Name :</span> <span className="font-normal">Fabrinet SOC</span></div>
                         </div>
                     )}
 
