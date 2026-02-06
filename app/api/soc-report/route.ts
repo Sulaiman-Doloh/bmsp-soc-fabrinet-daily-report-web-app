@@ -10,8 +10,8 @@ const AV_CLIENT_ID = process.env.ALIENVAULT_CLIENT_ID;
 const AV_CLIENT_SECRET = process.env.ALIENVAULT_CLIENT_SECRET;
 const AV_BASE_URL = `https://${AV_SUBDOMAIN}.alienvault.cloud/api/2.0`;
 
-// Regex สำหรับเช็คว่า string เป็น UUID หรือไม่
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BUFFER_DAYS = 2;
+const MAX_CONCURRENT_REQUESTS = 20;
 
 // 1. ฟังก์ชันขอ Token
 async function getAlienVaultToken() {
@@ -35,124 +35,275 @@ async function getAlienVaultToken() {
 }
 
 // 2. ฟังก์ชันแปลง Asset ID เป็นชื่อ
-async function resolveAssetId(assetId: string, token: string): Promise<string> {
+async function resolveAssetId(
+  assetId: string,
+  tokenRef: { value: string },
+  cache: Map<string, string>
+): Promise<string> {
+  if (!assetId) return "Unknown Asset";
+  if (cache.has(assetId)) return cache.get(assetId)!;
   try {
-    const res = await fetch(`${AV_BASE_URL}/assets/${assetId}`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      cache: 'force-cache'
-    });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await fetch(`${AV_BASE_URL}/assets/${assetId}`, {
+        headers: { 'Authorization': `Bearer ${tokenRef.value}` },
+        cache: 'no-store'
+      });
 
-    if (res.status === 404) return assetId;
-    if (!res.ok) return assetId;
+      if (res.status === 401 && attempt === 0) {
+        const newToken = await getAlienVaultToken();
+        if (newToken) tokenRef.value = newToken;
+        continue;
+      }
 
-    const data = await res.json();
-    let name = data.name;
-    if (!name) name = data.canonical;
-    if (!name && data.hostnames && data.hostnames.length > 0) name = data.hostnames[0];
-    if (!name && data.ip_addresses && data.ip_addresses.length > 0) name = data.ip_addresses[0];
+      if (res.status === 404) {
+        cache.set(assetId, assetId);
+        return assetId;
+      }
+      if (!res.ok) {
+        cache.set(assetId, assetId);
+        return assetId;
+      }
 
-    return name || assetId;
+      const data = await res.json();
+      let name = data.name;
+      if (!name) name = data.canonical;
+      if (!name && data.hostnames && data.hostnames.length > 0) name = data.hostnames[0];
+      if (!name && data.ip_addresses && data.ip_addresses.length > 0) name = data.ip_addresses[0];
+
+      const finalName = name || assetId;
+      cache.set(assetId, finalName);
+      return finalName;
+    }
   } catch (error) {
+    cache.set(assetId, assetId);
     return assetId;
   }
+}
+
+function getThaiDayStart(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00+07:00`).getTime();
+}
+
+function getThaiDayEnd(dateStr: string) {
+  return new Date(`${dateStr}T23:59:59.999+07:00`).getTime();
+}
+
+async function fetchAlarmDetails(alarmId: string, tokenRef: { value: string }) {
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await fetch(`${AV_BASE_URL}/alarms/${alarmId}`, {
+        headers: { 'Authorization': `Bearer ${tokenRef.value}` },
+        cache: 'no-store'
+      });
+      if (res.status === 401 && attempt === 0) {
+        const newToken = await getAlienVaultToken();
+        if (newToken) tokenRef.value = newToken;
+        continue;
+      }
+      if (!res.ok) return null;
+      return await res.json();
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function processAlarmResolution(
+  alarm: any,
+  tokenRef: { value: string },
+  assetCache: Map<string, string>
+) {
+  const alarmId = alarm.id || alarm.uuid;
+  const originalSourceVal = alarm.source_name || alarm.source_address || "Unknown";
+
+  if (!alarmId) {
+    return { ...alarm, resolved_source_names: [originalSourceVal] };
+  }
+
+  const fullData = (await fetchAlarmDetails(alarmId, tokenRef)) || alarm;
+  const normalizedAlarm = {
+    ...alarm,
+    rule_method: fullData.rule_method || alarm.rule_method,
+    destination_username: fullData.destination_username || alarm.destination_username
+  };
+
+  const events = fullData.events;
+  let firstEvent: any = {};
+  if (Array.isArray(events) && events.length > 0) {
+    firstEvent = events[0];
+  } else if (events && typeof events === "object") {
+    firstEvent = events;
+  }
+
+  let resolvedList: string[] = [];
+
+  // Priority 1: Asset ID จาก Event
+  const assetId = firstEvent?.source_asset_id;
+  if (assetId) {
+    const singleName = await resolveAssetId(String(assetId), tokenRef, assetCache);
+    if (singleName) resolvedList = [singleName];
+  }
+
+  // Priority 2: alarm_source_names
+  if (resolvedList.length === 0) {
+    const sourceNames = fullData?.alarm_source_names;
+    if (Array.isArray(sourceNames) && sourceNames.length > 0) {
+      resolvedList = sourceNames.filter(Boolean).map((name) => String(name));
+    }
+  }
+
+  // Priority 3: IP Address
+  if (resolvedList.length === 0) {
+    const ipAddress = firstEvent?.source_address;
+    if (ipAddress) resolvedList = [String(ipAddress)];
+  }
+
+  // Priority 4: Fallback decode from source_name / source_address
+  if (resolvedList.length === 0) {
+    if (originalSourceVal && originalSourceVal !== "Unknown") {
+      const decodedName = await resolveAssetId(String(originalSourceVal), tokenRef, assetCache);
+      resolvedList = [decodedName || String(originalSourceVal)];
+    } else {
+      resolvedList = [String(originalSourceVal)];
+    }
+  }
+
+  return { ...normalizedAlarm, resolved_source_names: resolvedList };
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () =>
+    (async () => {
+      while (true) {
+        const index = currentIndex;
+        currentIndex += 1;
+        if (index >= items.length) break;
+        results[index] = await mapper(items[index], index);
+      }
+    })()
+  );
+
+  await Promise.all(workers);
+  return results;
 }
 
 // 3. ฟังก์ชันหลักดึงข้อมูลและประมวลผล
 async function fetchAlienVaultData(startDate: string, endDate: string) {
   const token = await getAlienVaultToken();
   if (!token) return { alarms: [], actions: [] };
+  const tokenRef = { value: token };
 
-  const startTs = new Date(startDate).getTime();
-  const endTs = new Date(endDate).getTime() + (24 * 60 * 60 * 1000) - 1;
+  const receivedStartTs = getThaiDayStart(startDate);
+  const receivedEndTs = getThaiDayEnd(endDate);
+
+  const occuredStartTs = getThaiDayStart(startDate);
+  const occuredEndTs = getThaiDayEnd(endDate) + (24 * 60 * 60 * 1000);
+  const apiFetchOccuredStart = occuredStartTs - (BUFFER_DAYS * 24 * 60 * 60 * 1000);
 
   try {
-    const params = new URLSearchParams({
-      timestamp_occured_gte: startTs.toString(),
-      timestamp_occured_lte: endTs.toString(),
-      status: 'open',
-      size: '100', // จำกัดจำนวนต่อหน้า
-      sort: 'timestamp_occured,asc'
+    const allAlarms: any[] = [];
+    let page = 0;
+    const size = 1000;
+    let currentToken = token;
+
+    while (true) {
+      const params = new URLSearchParams({
+        timestamp_occured_gte: apiFetchOccuredStart.toString(),
+        timestamp_occured_lte: occuredEndTs.toString(),
+        status: 'open',
+        page: page.toString(),
+        size: size.toString(),
+        sort: 'timestamp_occured,asc'
+      });
+
+      const res = await fetch(`${AV_BASE_URL}/alarms?${params}`, {
+        headers: { 'Authorization': `Bearer ${currentToken}` },
+        cache: 'no-store'
+      });
+
+      if (res.status === 401) {
+        const newToken = await getAlienVaultToken();
+        if (!newToken) break;
+        currentToken = newToken;
+        tokenRef.value = newToken;
+        continue;
+      }
+      if (!res.ok) break;
+
+      const data = await res.json();
+      const alarmsInPage = data._embedded?.alarms || [];
+      if (!alarmsInPage.length) break;
+
+      allAlarms.push(...alarmsInPage);
+      if (!data._links?.next) break;
+      page += 1;
+    }
+
+    const assetCache = new Map<string, string>();
+    const statsMap = new Map<string, {
+      total: number,
+      destUsers: Map<string, number>,
+      sources: Map<string, number>
+    }>();
+
+    const filteredAlarms = allAlarms.filter((alarm: any) => {
+      const recTime = alarm.timestamp_received || alarm.timestamp_occured || 0;
+      return recTime >= receivedStartTs && recTime <= receivedEndTs;
     });
 
-    const res = await fetch(`${AV_BASE_URL}/alarms?${params}`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-      cache: 'no-store'
-    });
-    
-    if (!res.ok) return { alarms: [], actions: [] };
+    const processedAlarms = await mapWithConcurrency(
+      filteredAlarms,
+      MAX_CONCURRENT_REQUESTS,
+      async (alarm) => processAlarmResolution(alarm, tokenRef, assetCache)
+    );
 
-    const data = await res.json();
-    const alarmsList = data._embedded?.alarms || [];
-
-    // --- ส่วนแปลง Asset ID (รวม ID แล้วยิงทีเดียว) ---
-    const assetIdsToResolve = new Set<string>();
-    alarmsList.forEach((alarm: any) => {
-      const event = alarm.events ? (Array.isArray(alarm.events) ? alarm.events[0] : alarm.events) : null;
-      if (event && event.source_asset_id) assetIdsToResolve.add(event.source_asset_id);
-      const srcName = alarm.source_name || alarm.source_address;
-      if (srcName && UUID_REGEX.test(srcName)) assetIdsToResolve.add(srcName);
-    });
-
-    const assetMap = new Map<string, string>();
-    const resolvePromises = Array.from(assetIdsToResolve).map(async (id) => {
-      const name = await resolveAssetId(id, token);
-      assetMap.set(id, name);
-    });
-    await Promise.all(resolvePromises);
-
-    // --- ส่วนนับสถิติ (Aggregation) ---
-    const statsMap = new Map<string, { count: number, users: Set<string>, sources: Set<string> }>();
-
-    alarmsList.forEach((alarm: any) => {
-      // ✅ แก้ไข: ใช้ rule_method เป็นตัวหลัก ตาม JSON ที่ได้มา
-      const method = alarm.rule_method || alarm.rule_id || alarm.rule_intent || "Unknown Threat";
-      
+    for (const alarm of processedAlarms) {
+      const method = alarm.rule_method || "Unknown Threat";
       if (!statsMap.has(method)) {
-        statsMap.set(method, { count: 0, users: new Set(), sources: new Set() });
+        statsMap.set(method, { total: 0, destUsers: new Map(), sources: new Map() });
       }
       const entry = statsMap.get(method)!;
-      entry.count += 1;
+      entry.total += 1;
 
-      // เก็บ Usernames
-      if (alarm.destination_username) {
-        entry.users.add(`${alarm.destination_username}`);
+      const dstUser = alarm.destination_username;
+      if (dstUser) {
+        entry.destUsers.set(dstUser, (entry.destUsers.get(dstUser) || 0) + 1);
       }
 
-      // เก็บ Sources (เลือกชื่อที่แปลงแล้ว)
-      let finalSourceName = "Unknown";
-      const event = alarm.events ? (Array.isArray(alarm.events) ? alarm.events[0] : alarm.events) : null;
-      const assetId = event?.source_asset_id;
-      const alarmSourceNames = alarm.alarm_source_names || [];
-      const ipAddress = event?.source_address;
-      const fallbackSrc = alarm.source_name || alarm.source_address;
-
-      if (assetId && assetMap.has(assetId)) {
-        finalSourceName = assetMap.get(assetId)!;
-      } else if (alarmSourceNames.length > 0) {
-        finalSourceName = alarmSourceNames[0];
-      } else if (ipAddress) {
-        finalSourceName = ipAddress;
-      } else if (fallbackSrc) {
-         if (UUID_REGEX.test(fallbackSrc) && assetMap.has(fallbackSrc)) {
-             finalSourceName = assetMap.get(fallbackSrc)!;
-         } else {
-             finalSourceName = fallbackSrc;
-         }
+      const resolvedSrcs = alarm.resolved_source_names || [];
+      for (const src of resolvedSrcs) {
+        if (!src) continue;
+        entry.sources.set(src, (entry.sources.get(src) || 0) + 1);
       }
-      entry.sources.add(finalSourceName);
+    }
+
+    const table1Data = Array.from(statsMap.entries())
+      .map(([method, data]) => ({ threatType: method, count: data.total }))
+      .sort((a, b) => b.count - a.count);
+
+    const table3Data = Array.from(statsMap.entries()).map(([method, data]) => {
+      const usernames = Array.from(data.destUsers.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => `${name} (${count})`);
+      const sources = Array.from(data.sources.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => `${name} (${count})`);
+
+      return {
+        methodName: `${method} (${data.total})`,
+        usernames,
+        sources
+      };
     });
-
-    // Format Output
-    const table1Data = Array.from(statsMap.entries()).map(([method, data]) => ({
-      threatType: method,
-      count: data.count
-    })).sort((a, b) => b.count - a.count);
-
-    const table3Data = Array.from(statsMap.entries()).map(([method, data]) => ({
-      methodName: `${method} (${data.count})`,
-      usernames: Array.from(data.users).map(u => `${u} (1)`), 
-      sources: Array.from(data.sources).map(s => `${s} (1)`)
-    }));
 
     return { alarms: table1Data, actions: table3Data };
 
