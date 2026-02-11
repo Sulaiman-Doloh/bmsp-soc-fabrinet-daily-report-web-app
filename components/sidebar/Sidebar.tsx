@@ -9,11 +9,13 @@ export default function Sidebar() {
   const [activeReport, setActiveReport] = useState('fabrinet');
   
   // เรียกใช้ Context
-  const { startDate, setStartDate, setEndDate } = useReport();
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const {
+    selectedDate,
+    reportDate,
+    setSelectedDate,
+    setReportDate,
+    isRunning
+  } = useReport();
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -25,8 +27,76 @@ export default function Sidebar() {
   // ฟังก์ชันเมื่อเปลี่ยนวันที่ (เหลือกล่องเดียว)
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDate = e.target.value;
-    setStartDate(selectedDate); // เซ็ตวันเริ่ม
-    setEndDate(selectedDate);   // เซ็ตวันจบให้เท่ากัน (คือดูเฉพาะวันนั้นทั้งวัน)
+    setSelectedDate(selectedDate);
+  };
+
+  const handleRunReport = () => {
+    if (!selectedDate || isRunning) return;
+    setReportDate(selectedDate);
+  };
+
+  const handleStopReport = () => {
+    if (!reportDate && !isRunning) return;
+    setReportDate("");
+  };
+
+  const handleDownload = async () => {
+    if (!reportDate || isRunning) return;
+    const reportRoot = document.getElementById("report-root");
+    if (!reportRoot) return;
+
+    try {
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
+
+      const html2canvasModule = await import("html2canvas");
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+      const jspdfModule = await import("jspdf");
+      const { jsPDF } = jspdfModule;
+      const filename = `SOC_Daily_Report_${reportDate}.pdf`;
+
+      const pages = Array.from(reportRoot.querySelectorAll(".a4-page")) as HTMLElement[];
+      if (pages.length === 0) return;
+
+      const waitForImages = async (root: HTMLElement) => {
+        const images = Array.from(root.querySelectorAll("img"));
+        await Promise.all(
+          images.map((img) => {
+            if (img.complete) return Promise.resolve();
+            return new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            });
+          })
+        );
+      };
+
+      await waitForImages(reportRoot);
+
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      for (let i = 0; i < pages.length; i += 1) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const canvas = await html2canvas(pages[i], {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          scrollX: -window.scrollX,
+          scrollY: -window.scrollY
+        });
+        const imgData = canvas.toDataURL("image/jpeg", 0.98);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, 0, pageWidth, pageHeight);
+      }
+
+      pdf.save(filename);
+    } catch (error) {
+      console.error("Download PDF failed:", error);
+    } finally {
+    }
   };
 
   return (
@@ -62,10 +132,27 @@ export default function Sidebar() {
                     </label>
                     <input 
                         type="date" 
-                        value={startDate} 
+                        value={selectedDate}
                         onChange={handleDateChange}
+                        disabled={isRunning}
                         className="w-full bg-[#1a234d] border border-gray-600 text-white text-sm rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 transition-all cursor-pointer hover:border-gray-500"
                     />
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={handleRunReport}
+                        disabled={!selectedDate || isRunning}
+                        className="flex-1 bg-blue-600 disabled:bg-blue-900/40 disabled:text-blue-200/40 hover:bg-blue-500 text-white font-bold py-2 rounded-md text-xs transition"
+                      >
+                        ▶ Run Report
+                      </button>
+                      <button
+                        onClick={handleStopReport}
+                        disabled={!reportDate && !isRunning}
+                        className="flex-1 bg-rose-600 disabled:bg-rose-900/40 disabled:text-rose-200/40 hover:bg-rose-500 text-white font-bold py-2 rounded-md text-xs transition"
+                      >
+                        ■ Stop
+                      </button>
+                    </div>
                 </div>
               </div>
 
@@ -128,11 +215,12 @@ export default function Sidebar() {
 
       {/* 3. Footer Actions */}
       <div className="p-4 border-t border-gray-700 bg-[#020510]">
-        <button 
-          onClick={handlePrint}
-          className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"
+        <button
+          onClick={handleDownload}
+          disabled={!reportDate || isRunning}
+          className="w-full bg-emerald-600 disabled:bg-emerald-900/40 disabled:text-emerald-200/40 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2"
         >
-          🖨️ Print Report
+          ⬇ Download PDF
         </button>
         <p className="text-[10px] text-center text-gray-600 mt-3 font-mono">System v2.1.0</p>
       </div>

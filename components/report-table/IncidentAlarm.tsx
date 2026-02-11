@@ -12,7 +12,7 @@ interface Props {
 
 export default function AlarmTable({ data }: Props) {
   return (
-    <div className="w-full mb-8 font-arapey break-inside-avoid">
+    <div className="w-full mb-8 font-arapey break-inside-avoid text-black text-[12px]">
       {/* ส่วน Header: ใช้รูปภาพแทน Code เดิม */}
       <div className="w-full">
         <img 
@@ -24,11 +24,11 @@ export default function AlarmTable({ data }: Props) {
 
       {/* ตัวตาราง */}
       {/* ลบ border-t ออก (border-t-0) เพื่อให้เส้นขอบบนของตารางไม่ซ้อนกับรูปภาพ */}
-      <table className="w-full border-collapse border border-black border-t-0 text-base">
+      <table className="report-table w-full border-collapse border border-black border-t-0 table-fixed">
         <thead>
-          <tr className="bg-white text-black font-bold">
-            <th className="border border-black border-t-0 p-2 text-left w-3/4 pl-4">Threat Model Type</th>
-            <th className="border border-black border-t-0 p-2 text-center w-1/4">Count of Incident</th>
+          <tr className="bg-white font-bold">
+            <th className="border border-black border-t-0 p-2 text-left w-3/4 pl-4 align-middle">Threat Model Type</th>
+            <th className="border border-black border-t-0 p-2 text-center w-1/4 align-middle">Count of Incident</th>
           </tr>
         </thead>
         <tbody>
@@ -36,18 +36,19 @@ export default function AlarmTable({ data }: Props) {
             data.map((item, index) => (
               <tr key={index} className="h-10">
                 {/* ✅ แก้ไข: เรียกใช้ threatType และกันเหนียวกรณีค่าว่าง */}
-                <td className="border border-black p-2 pl-4 font-bold">
-                    {item.threatType || "Unknown Threat"}
+                <td className="border border-black p-2 pl-4 font-bold align-middle text-left">
+                    {item.threatType || <span className="dash-center">-</span>}
                 </td>
-                <td className="border border-black p-2 text-center font-bold">{item.count}</td>
+                <td className="border border-black p-2 text-center font-bold align-middle">
+                  {typeof item.count === "number" ? item.count : <span className="dash-center">-</span>}
+                </td>
               </tr>
             ))
           ) : (
             // กรณีไม่มีข้อมูล
             <tr>
-                <td colSpan={2} className="border border-black p-4 text-center text-gray-500 italic">
-                    No incidents found
-                </td>
+                <td className="border border-black p-4 text-center align-middle font-bold">-</td>
+                <td className="border border-black p-4 text-center align-middle font-bold">-</td>
             </tr>
           )}
         </tbody>

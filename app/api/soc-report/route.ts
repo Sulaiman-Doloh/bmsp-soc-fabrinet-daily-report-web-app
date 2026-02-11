@@ -85,7 +85,7 @@ function getThaiDayStart(dateStr: string) {
 }
 
 function getThaiDayEnd(dateStr: string) {
-  return new Date(`${dateStr}T23:59:59.999+07:00`).getTime();
+  return new Date(`${dateStr}T23:59:59.000+07:00`).getTime();
 }
 
 async function fetchAlarmDetails(alarmId: string, tokenRef: { value: string }) {
@@ -292,10 +292,16 @@ async function fetchAlienVaultData(startDate: string, endDate: string) {
 
     const table3Data = Array.from(statsMap.entries()).map(([method, data]) => {
       const usernames = Array.from(data.destUsers.entries())
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => {
+          if (b[1] !== a[1]) return b[1] - a[1];
+          return String(a[0]).localeCompare(String(b[0]));
+        })
         .map(([name, count]) => `${name} (${count})`);
       const sources = Array.from(data.sources.entries())
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => {
+          if (b[1] !== a[1]) return b[1] - a[1];
+          return String(a[0]).localeCompare(String(b[0]));
+        })
         .map(([name, count]) => `${name} (${count})`);
 
       return {

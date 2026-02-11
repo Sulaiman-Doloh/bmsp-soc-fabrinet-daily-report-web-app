@@ -5,22 +5,32 @@ import React, { createContext, useContext, useState } from 'react';
 
 // กำหนดหน้าตาของข้อมูลที่จะส่งหากัน
 interface ReportContextType {
-  startDate: string;
-  endDate: string;
-  setStartDate: (date: string) => void;
-  setEndDate: (date: string) => void;
+  selectedDate: string;
+  reportDate: string;
+  setSelectedDate: (date: string) => void;
+  setReportDate: (date: string) => void;
+  isRunning: boolean;
+  setIsRunning: (value: boolean) => void;
 }
 
 const ReportContext = createContext<ReportContextType | undefined>(undefined);
 
 export function ReportProvider({ children }: { children: React.ReactNode }) {
-  // ตั้งค่าเริ่มต้นเป็นวันที่ปัจจุบัน
-  const today = new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [reportDate, setReportDate] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
 
   return (
-    <ReportContext.Provider value={{ startDate, endDate, setStartDate, setEndDate }}>
+    <ReportContext.Provider
+      value={{
+        selectedDate,
+        reportDate,
+        setSelectedDate,
+        setReportDate,
+        isRunning,
+        setIsRunning
+      }}
+    >
       {children}
     </ReportContext.Provider>
   );

@@ -12,7 +12,7 @@ interface Props {
 
 export default function PendingTable({ data }: Props) {
   return (
-    <div className="w-full mb-8 font-arapey break-inside-avoid">
+    <div className="w-full mb-8 font-arapey break-inside-avoid text-black text-[12px]">
       {/* ส่วน Header รูปภาพ */}
       <div className="w-full">
         <img 
@@ -22,26 +22,39 @@ export default function PendingTable({ data }: Props) {
         />
       </div>
 
-      <table className="w-full border-collapse border border-black border-t-0 text-base">
+      <table className="report-table w-full border-collapse border border-black border-t-0 table-fixed">
         <thead>
-          <tr className="bg-white text-black font-bold text-center">
-            <th className="border border-black border-t-0 p-2 w-14">No.</th>
-            <th className="border border-black border-t-0 p-2 w-48">Incident ID</th>
-            <th className="border border-black border-t-0 p-2">Incident Name</th>
-            <th className="border border-black border-t-0 p-2 w-24">Stage</th>
+          <tr className="bg-white font-bold text-left">
+            <th className="border border-black border-t-0 p-2 w-14 align-middle">No.</th>
+            <th className="border border-black border-t-0 p-2 w-48 align-middle">Incident ID</th>
+            <th className="border border-black border-t-0 p-2 align-middle">Incident Name</th>
+            <th className="border border-black border-t-0 p-2 w-24 align-middle">Status</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((item, index) => (
-            <tr key={index} className="h-12">
-              <td className="border border-black p-2 text-center font-bold align-middle">{index + 1}</td>
-              <td className="border border-black p-2 pl-4 font-bold align-middle">{item.id}</td>
-              <td className="border border-black p-2 pl-4 align-middle font-medium leading-tight">{item.name}</td>
-              <td className="border border-black p-2 text-center font-bold align-middle">
-                {item.stage}
-              </td>
+          {data.length > 0 ? (
+            data.map((item, index) => (
+              <tr key={index} className="h-12">
+                <td className="border border-black p-2 text-left font-bold align-middle">{index + 1}</td>
+                <td className="border border-black p-2 pl-4 font-bold align-middle text-left">
+                  {item.id || <span className="dash-center">-</span>}
+                </td>
+                <td className="border border-black p-2 pl-4 align-middle font-medium leading-tight text-left">
+                  {item.name || <span className="dash-center">-</span>}
+                </td>
+                <td className="border border-black p-2 text-left font-bold align-middle">
+                  {item.stage || <span className="dash-center">-</span>}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr className="h-12">
+              <td className="border border-black p-2 text-center font-bold align-middle">-</td>
+              <td className="border border-black p-2 text-center font-bold align-middle">-</td>
+              <td className="border border-black p-2 text-center font-bold align-middle">-</td>
+              <td className="border border-black p-2 text-center font-bold align-middle">-</td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </div>

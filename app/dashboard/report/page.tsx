@@ -1,7 +1,7 @@
 // app/report/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Arapey } from 'next/font/google';
 
 // Import Components
@@ -33,11 +33,93 @@ function paginateData<T>(array: T[], firstPageSize: number, otherPageSize: numbe
   return pages;
 }
 
+const ACTION_CHUNK_SIZE = 40;
+
+function chunkArray<T>(array: T[], size: number) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function formatReportDate(dateStr: string) {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) return dateStr;
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ];
+  return `${String(day).padStart(2, "0")} ${monthNames[month - 1]} ${year}`;
+}
+
+function buildActionPages(data: any[], firstPageUnits: number, otherPageUnits: number) {
+  const pages: any[][] = [];
+  let currentPage: any[] = [];
+  let currentLimit = firstPageUnits;
+  let currentUnits = 0;
+
+  const flushPage = () => {
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentLimit = otherPageUnits;
+      currentUnits = 0;
+    }
+  };
+
+  data.forEach((item) => {
+    const usernames = Array.isArray(item.usernames) ? [...item.usernames] : [];
+    const sources = Array.isArray(item.sources) ? [...item.sources] : [];
+    let remaining = Math.max(usernames.length, sources.length, 1);
+    let offset = 0;
+
+    while (remaining > 0) {
+      if (currentUnits >= currentLimit) {
+        flushPage();
+      }
+      const remainingCapacity = currentLimit - currentUnits;
+      const chunkSize = Math.min(
+        ACTION_CHUNK_SIZE,
+        remaining,
+        remainingCapacity > 0 ? remainingCapacity : ACTION_CHUNK_SIZE
+      );
+
+      const chunkItem = {
+        ...item,
+        usernames: usernames.slice(offset, offset + chunkSize),
+        sources: sources.slice(offset, offset + chunkSize)
+      };
+
+      currentPage.push(chunkItem);
+      currentUnits += chunkSize;
+      offset += chunkSize;
+      remaining -= chunkSize;
+    }
+  });
+
+  flushPage();
+  return pages;
+}
+
 // --- Component: A4 Page ---
 const A4Page = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => {
   return (
-    <div className={`w-[210mm] min-h-[297mm] bg-white shadow-lg mb-8 mx-auto relative flex flex-col p-[15mm]
-      print:shadow-none print:mb-0 print:break-after-page ${className}`}>
+    <div
+      className={`a4-page w-[210mm] min-h-[297mm] bg-white shadow-lg mb-8 mx-auto relative flex flex-col overflow-hidden
+      print:shadow-none print:mb-0 print:break-after-page ${className}`}
+    >
       {children}
     </div>
   );
@@ -51,7 +133,7 @@ const HeaderImage = () => (
 );
 
 export default function ReportPage() {
-  const { startDate, endDate } = useReport();
+  const { reportDate, setIsRunning } = useReport();
 
   const [alarmData, setAlarmData] = useState<any[]>([]);
   const [pendingData, setPendingData] = useState<any[]>([]);
@@ -59,13 +141,38 @@ export default function ReportPage() {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (!reportDate) {
+      abortRef.current?.abort();
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+      setLoading(false);
+      setIsRunning(false);
+      setProgress(0);
+      return;
+    }
+
     const fetchData = async () => {
       setLoading(true);
       setError(null);
+      setIsRunning(true);
+      setProgress(0);
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+      progressTimerRef.current = setInterval(() => {
+        setProgress((prev) => (prev < 90 ? prev + 5 : prev));
+      }, 700);
+
       try {
-        const res = await fetch(`/api/soc-report?start=${startDate}&end=${endDate}`);
+        const res = await fetch(`/api/soc-report?start=${reportDate}&end=${reportDate}`, {
+          signal: controller.signal
+        });
         
         if (!res.ok) throw new Error("Failed to fetch data");
         
@@ -90,26 +197,74 @@ export default function ReportPage() {
         setActionData(result.actions || []);
 
       } catch (err: any) {
+        if (err?.name === "AbortError") {
+          return;
+        }
         console.error("Fetch error:", err);
         setError(err.message);
         setAlarmData([]);
         setPendingData([]);
       } finally {
+        if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+        setProgress(100);
         setLoading(false);
+        setIsRunning(false);
       }
     };
 
     fetchData();
-  }, [startDate, endDate]);
+  }, [reportDate, setIsRunning]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+    };
+  }, []);
 
 
   // 4. แบ่งหน้าข้อมูล (Pagination)
   const alarmPages = paginateData(alarmData, 12, 20); 
   const pendingPages = paginateData(pendingData, 20, 25);
-  const actionPages = paginateData(actionData, 4, 6);
+  const threatOrder = alarmData.map((item) => item.threatType);
+  const getMethodKey = (methodName: string) => {
+    const trimmed = methodName?.trim() || "";
+    const cutIndex = trimmed.lastIndexOf(" (");
+    return cutIndex > 0 ? trimmed.slice(0, cutIndex) : trimmed;
+  };
+  const sortedActionData = [...actionData].sort((a, b) => {
+    const aKey = getMethodKey(a.methodName);
+    const bKey = getMethodKey(b.methodName);
+    const aIndex = threatOrder.indexOf(aKey);
+    const bIndex = threatOrder.indexOf(bKey);
+    const aRank = aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex;
+    const bRank = bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex;
+    if (aRank !== bRank) return aRank - bRank;
+    return aKey.localeCompare(bKey);
+  });
+  const actionPages = buildActionPages(sortedActionData, 40, 40);
+
+  if (!reportDate) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-lg font-bold text-gray-600">
+        Please select a report date and click Run Report.
+      </div>
+    );
+  }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-xl font-bold text-blue-800 animate-pulse">Loading Data...</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-blue-800 font-bold">
+        <div className="text-xl animate-pulse">Loading Data...</div>
+        <div className="mt-3 text-lg">{progress}%</div>
+        <div className="mt-3 h-2 w-64 bg-blue-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-600 transition-all"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+    );
   }
   
   if (error) {
@@ -117,7 +272,10 @@ export default function ReportPage() {
   }
 
   return (
-    <div className={`${arapey.variable} font-arapey flex flex-col items-center bg-gray-100 min-h-screen p-8 print:p-0 print:bg-white`}>
+    <div
+      id="report-root"
+      className={`${arapey.variable} report-root font-arapey flex flex-col items-center min-h-screen p-8 print:p-0 print:bg-white`}
+    >
       
       {/* ================= SECTION 1: Incident Alarm ================= */}
       <div id="page-1">
@@ -129,7 +287,7 @@ export default function ReportPage() {
                     {index === 0 && (
                         <div className="mt-2 mb-8 text-lg text-black font-bold space-y-1.5 leading-snug">
                             {/* ใช้ w-44 เพื่อจัดระเบียบข้อความ */}
-                            <div className="flex"><span className="w-33 font-bold">Report Range :</span> <span className="font-normal">{startDate} to {endDate}</span></div>
+                            <div className="flex"><span className="w-33 font-bold">Report Date :</span> <span className="font-normal">{formatReportDate(reportDate)}</span></div>
                             <div className="flex"><span className="w-25 font-bold">Report by :</span> <span className="font-normal">BMSP SOC Support</span></div>
                             <div className="flex"><span className="w-39 font-bold">Customer Name :</span> <span className="font-normal">Fabrinet</span></div>
                             <div className="flex"><span className="w-33 font-bold">Project Name :</span> <span className="font-normal">Fabrinet SOC</span></div>
@@ -148,7 +306,7 @@ export default function ReportPage() {
                  <HeaderImage />
                  <div className="h-96 flex flex-col items-center justify-center text-gray-400">
                     <p className="text-2xl font-bold">No Data Found</p>
-                    <p className="text-sm">Between {startDate} and {endDate}</p>
+                    <p className="text-sm">Date {formatReportDate(reportDate)}</p>
                  </div>
             </A4Page>
         )}
@@ -156,24 +314,40 @@ export default function ReportPage() {
 
       {/* ================= SECTION 2: Incident Pending ================= */}
       <div id="page-2">
-         {pendingPages.map((pageData, index) => (
-            <A4Page key={`pending-page-${index}`}>
-                 <div className="pt-8"> 
-                    <IncidentPending data={pageData} />
-                 </div>
+         {pendingPages.length > 0 ? (
+            pendingPages.map((pageData, index) => (
+              <A4Page key={`pending-page-${index}`}>
+                <div className="pt-8">
+                  <IncidentPending data={pageData} />
+                </div>
+              </A4Page>
+            ))
+         ) : (
+            <A4Page>
+              <div className="pt-8">
+                <IncidentPending data={[]} />
+              </div>
             </A4Page>
-         ))}
+         )}
       </div>
 
       {/* ================= SECTION 3: Recommend Action ================= */}
       <div id="page-3">
-         {actionPages.map((pageData, index) => (
-            <A4Page key={`action-page-${index}`}>
-                 <div className="pt-8">
-                    <RecommendAction data={pageData} />
-                 </div>
+         {actionPages.length > 0 ? (
+            actionPages.map((pageData, index) => (
+              <A4Page key={`action-page-${index}`}>
+                <div className="pt-4">
+                  <RecommendAction data={pageData} />
+                </div>
+              </A4Page>
+            ))
+         ) : (
+            <A4Page>
+              <div className="pt-4">
+                <RecommendAction data={[]} />
+              </div>
             </A4Page>
-         ))}
+         )}
       </div>
 
     </div>
