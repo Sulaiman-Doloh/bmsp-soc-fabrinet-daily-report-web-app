@@ -64,18 +64,18 @@ function formatReportDate(dateStr: string) {
   return `${String(day).padStart(2, "0")} ${monthNames[month - 1]} ${year}`;
 }
 
-function buildActionPages(data: any[], firstPageUnits: number, otherPageUnits: number) {
+function buildActionPages(data: any[], maxPerPage: number) {
   const pages: any[][] = [];
   let currentPage: any[] = [];
-  let currentLimit = firstPageUnits;
   let currentUnits = 0;
+  let currentMethodsSet = new Set<string>();
 
   const flushPage = () => {
     if (currentPage.length > 0) {
       pages.push(currentPage);
       currentPage = [];
-      currentLimit = otherPageUnits;
       currentUnits = 0;
+      currentMethodsSet.clear();
     }
   };
 
@@ -84,16 +84,32 @@ function buildActionPages(data: any[], firstPageUnits: number, otherPageUnits: n
     const sources = Array.isArray(item.sources) ? [...item.sources] : [];
     let remaining = Math.max(usernames.length, sources.length, 1);
     let offset = 0;
+    const methodName = item.methodName || '';
 
     while (remaining > 0) {
-      if (currentUnits >= currentLimit) {
+      // เช็คว่ามี 12 methods แล้วและกำลังจะเพิ่ม method ใหม่
+      if (!currentMethodsSet.has(methodName) && currentMethodsSet.size >= 12) {
         flushPage();
       }
-      const remainingCapacity = currentLimit - currentUnits;
+      
+      // คำนวณ limit สำหรับหน้าปัจจุบัน
+      const effectiveLimit = currentPage.length > 0 ? 40 : 50;
+      const maxChunkSize = currentPage.length > 0 ? 40 : 50;
+      
+      // คำนวณพื้นที่ว่างในหน้า
+      const remainingCapacity = effectiveLimit - currentUnits;
+      
+      if (remainingCapacity <= 0) {
+        // หน้าเต็มแล้ว → flush และเริ่มหน้าใหม่
+        flushPage();
+        continue;
+      }
+      
+      // คำนวณขนาด chunk ที่จะใส่
       const chunkSize = Math.min(
-        ACTION_CHUNK_SIZE,
+        maxChunkSize,
         remaining,
-        remainingCapacity > 0 ? remainingCapacity : ACTION_CHUNK_SIZE
+        remainingCapacity
       );
 
       const chunkItem = {
@@ -106,6 +122,9 @@ function buildActionPages(data: any[], firstPageUnits: number, otherPageUnits: n
       currentUnits += chunkSize;
       offset += chunkSize;
       remaining -= chunkSize;
+      
+      // เพิ่ม methodName เข้า Set (ถ้ายังไม่มี)
+      currentMethodsSet.add(methodName);
     }
   });
 
@@ -242,7 +261,7 @@ export default function ReportPage() {
     if (aRank !== bRank) return aRank - bRank;
     return aKey.localeCompare(bKey);
   });
-  const actionPages = buildActionPages(sortedActionData, 40, 40);
+  const actionPages = buildActionPages(sortedActionData, 50);
 
   if (!reportDate) {
     return (

@@ -149,7 +149,8 @@ async function processAlarmResolution(
   if (resolvedList.length === 0) {
     const sourceNames = fullData?.alarm_source_names;
     if (Array.isArray(sourceNames) && sourceNames.length > 0) {
-      resolvedList = sourceNames.filter(Boolean).map((name) => String(name));
+      const cleanedNames = sourceNames.filter(Boolean).map((name) => String(name));
+      resolvedList = [...new Set(cleanedNames)];
     }
   }
 
@@ -290,18 +291,23 @@ async function fetchAlienVaultData(startDate: string, endDate: string) {
       .map(([method, data]) => ({ threatType: method, count: data.total }))
       .sort((a, b) => b.count - a.count);
 
+    const customSort = (a: [string, number], b: [string, number]) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      const aStr = String(a[0]);
+      const bStr = String(b[0]);
+      const aStartsWithBackslash = aStr.startsWith("\\");
+      const bStartsWithBackslash = bStr.startsWith("\\");
+      if (!aStartsWithBackslash && bStartsWithBackslash) return -1;
+      if (aStartsWithBackslash && !bStartsWithBackslash) return 1;
+      return aStr.localeCompare(bStr, 'en', { sensitivity: 'base', numeric: true });
+    };
+
     const table3Data = Array.from(statsMap.entries()).map(([method, data]) => {
       const usernames = Array.from(data.destUsers.entries())
-        .sort((a, b) => {
-          if (b[1] !== a[1]) return b[1] - a[1];
-          return String(a[0]).localeCompare(String(b[0]));
-        })
+        .sort(customSort)
         .map(([name, count]) => `${name} (${count})`);
       const sources = Array.from(data.sources.entries())
-        .sort((a, b) => {
-          if (b[1] !== a[1]) return b[1] - a[1];
-          return String(a[0]).localeCompare(String(b[0]));
-        })
+        .sort(customSort)
         .map(([name, count]) => `${name} (${count})`);
 
       return {
