@@ -25,9 +25,9 @@ export default function ActionTable({ data }: Props) {
       <table className="report-table w-full border-collapse border border-black border-t-0 table-fixed">
         <thead>
           <tr className="bg-white font-bold text-center">
-            <th className="border border-black border-t-0 p-2 w-1/3 align-middle">Method Name</th>
-            <th className="border border-black border-t-0 p-2 w-1/3 align-middle">Destination Username</th>
-            <th className="border border-black border-t-0 p-2 w-1/3 align-middle">Sources</th>
+            <th className="border border-black border-t-0 p-2 w-1/2 align-middle">Method Name</th>
+            <th className="border border-black border-t-0 p-2 w-1/2 align-middle">Destination Username</th>
+            <th className="border border-black border-t-0 p-2 w-1/2 align-middle">Sources</th>
           </tr>
         </thead>
         <tbody>

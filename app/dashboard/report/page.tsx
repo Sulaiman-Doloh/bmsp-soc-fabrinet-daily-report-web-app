@@ -58,36 +58,32 @@ function buildActionPages(data: any[], maxPerPage: number) {
   const pages: any[][] = [];
   let currentPage: any[] = [];
   let currentUnits = 0;
-  let currentMethodsSet = new Set<string>();
-  const otherPageLimit = Math.max(maxPerPage - 10, 1);
 
   const flushPage = () => {
     if (currentPage.length > 0) {
       pages.push(currentPage);
       currentPage = [];
       currentUnits = 0;
-      currentMethodsSet.clear();
     }
   };
 
   data.forEach((item) => {
     const usernames = Array.isArray(item.usernames) ? item.usernames : [];
     const sources = Array.isArray(item.sources) ? item.sources : [];
-    const itemUnits = Math.max(usernames.length, sources.length, 1);
-    const methodName = item.methodName || '';
-    const isFirstReportActionPage = pages.length === 0;
-    const effectiveLimit = isFirstReportActionPage ? maxPerPage : otherPageLimit;
-    const methodLimitReached = !currentMethodsSet.has(methodName) && currentMethodsSet.size >= 12;
+    const contentUnits = Math.max(usernames.length, sources.length, 1);
+    // Reserve extra vertical space per method row (cell padding + method title block)
+    const rowOverheadUnits = 2;
+    const itemUnits = contentUnits + rowOverheadUnits;
+    const effectiveLimit = maxPerPage;
     const pageCapacityReached = currentPage.length > 0 && (currentUnits + itemUnits > effectiveLimit);
 
     // Keep each method in one page; never split one method across pages.
-    if (methodLimitReached || pageCapacityReached) {
+    if (pageCapacityReached) {
       flushPage();
     }
 
     currentPage.push(item);
     currentUnits += itemUnits;
-    currentMethodsSet.add(methodName);
   });
 
   flushPage();
@@ -222,7 +218,7 @@ export default function ReportPage() {
     if (aRank !== bRank) return aRank - bRank;
     return aKey.localeCompare(bKey);
   });
-  const actionPages = buildActionPages(sortedActionData, 50);
+  const actionPages = buildActionPages(sortedActionData, 55);
 
   if (!reportDate) {
     return (
@@ -265,7 +261,7 @@ export default function ReportPage() {
                     {index === 0 && <HeaderImage />}
                     
                     {index === 0 && (
-                        <div className="mt-2 mb-2 text-lg text-black font-bold space-y-1.5 leading-snug">
+                        <div className="mt-0 mb-5 text-lg text-black font-bold space-y-1 leading-snug">
                             {/* ใช้ w-44 เพื่อจัดระเบียบข้อความ */}
                             <div className="flex"><span className="w-27 font-bold">Report Date :</span> <span className="font-normal">{formatReportDate(reportDate)}</span></div>
                             <div className="flex"><span className="w-23 font-bold">Report by :</span> <span className="font-normal">BMSP SOC Support</span></div>
