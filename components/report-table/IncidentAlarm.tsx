@@ -28,7 +28,7 @@ export default function AlarmTable({ data }: Props) {
         <thead>
           <tr className="bg-white font-bold">
             <th className="border border-black border-t-0 p-2 text-left w-3/4 pl-4 align-middle">Threat Model Type</th>
-            <th className="border border-black border-t-0 p-2 text-center w-1/4 align-middle">Count of Incident</th>
+            <th className="border border-black border-t-0 p-2 text-center w-1/5 align-middle">Count of Incident</th>
           </tr>
         </thead>
         <tbody>

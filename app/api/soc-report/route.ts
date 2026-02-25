@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import crypto from 'crypto';
+
 
 // ==========================================
 // ส่วน AlienVault Config
@@ -10,8 +11,32 @@ const AV_CLIENT_ID = process.env.ALIENVAULT_CLIENT_ID;
 const AV_CLIENT_SECRET = process.env.ALIENVAULT_CLIENT_SECRET;
 const AV_BASE_URL = `https://${AV_SUBDOMAIN}.alienvault.cloud/api/2.0`;
 
+// ==========================================
+// Cyware Config & Helper Functions
+// ==========================================
 const BUFFER_DAYS = 2;
 const MAX_CONCURRENT_REQUESTS = 20;
+const CYWARE_ACCESS_ID = process.env.CYWARE_ACCESS_ID || process.env.ACCESS_ID;
+const CYWARE_SECRET_KEY = process.env.CYWARE_SECRET_KEY || process.env.SECRET_KEY;
+const CYWARE_BASE_URL = process.env.CYWARE_BASE_URL || process.env.BASE_URL || 'https://bangkokmsp.cyware.com/cftrapi';
+const CYWARE_PAGE_SIZE = 100;
+const CYWARE_PENDING_LOOKBACK_DAYS = 90;
+const MAX_DEST_USERNAMES_PER_METHOD = 50;
+
+type CywareIncident = {
+  unique_id?: string;
+  readable_id?: string;
+  incident_id?: string;
+  title?: string;
+  status?: string;
+  created?: string;
+};
+
+type PendingIncidentRow = {
+  inc_no: string;
+  incident_name: string;
+  status: string;
+};
 
 // 1. ฟังก์ชันขอ Token
 async function getAlienVaultToken() {
@@ -86,6 +111,126 @@ function getThaiDayStart(dateStr: string) {
 
 function getThaiDayEnd(dateStr: string) {
   return new Date(`${dateStr}T23:59:59.000+07:00`).getTime();
+}
+
+function generateCywareSignature(accessId: string, secretKey: string, expires: number) {
+  const payload = `${accessId}\n${expires}`;
+  return crypto.createHmac('sha1', secretKey).update(payload).digest('base64');
+}
+
+function normalizePendingStatus(status: unknown): string {
+  const normalized = String(status ?? '').trim().toLowerCase();
+  if (normalized === 'open') return 'Pending';
+  if (normalized === 'closed') return 'Completed';
+  return String(status ?? 'Pending').trim() || 'Pending';
+}
+
+function buildCywareAuthParams() {
+  if (!CYWARE_ACCESS_ID || !CYWARE_SECRET_KEY) {
+    return null;
+  }
+  const expires = Math.floor(Date.now() / 1000) + 60;
+  return {
+    AccessID: CYWARE_ACCESS_ID,
+    Expires: expires,
+    Signature: generateCywareSignature(CYWARE_ACCESS_ID, CYWARE_SECRET_KEY, expires)
+  };
+}
+
+async function fetchCywareIncidentDetail(uniqueId: string): Promise<string> {
+  const authParams = buildCywareAuthParams();
+  if (!authParams || !uniqueId) return '';
+
+  try {
+    const params = new URLSearchParams({
+      ...Object.fromEntries(Object.entries(authParams).map(([k, v]) => [k, String(v)]))
+    });
+    const res = await fetch(`${CYWARE_BASE_URL}/openapi/v1/incident/${encodeURIComponent(uniqueId)}/?${params.toString()}`, {
+      cache: 'no-store'
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return data?.incident_id ? String(data.incident_id) : '';
+  } catch {
+    return '';
+  }
+}
+
+async function fetchCywarePendingIncidents(startDate: string, endDate: string): Promise<PendingIncidentRow[]> {
+  if (!buildCywareAuthParams()) {
+    console.warn('CYWARE_ACCESS_ID / CYWARE_SECRET_KEY is not configured.');
+    return [];
+  }
+
+  try {
+    const endEpoch = Math.floor(getThaiDayEnd(endDate) / 1000);
+    const primaryStartEpoch = Math.floor(getThaiDayStart(startDate) / 1000);
+    const fallbackStartEpoch = endEpoch - (CYWARE_PENDING_LOOKBACK_DAYS * 24 * 60 * 60);
+
+    const fetchIncidentsByRange = async (startEpoch: number, endEpochRange: number) => {
+      const rows: CywareIncident[] = [];
+      let page = 1;
+
+      while (true) {
+        const authParams = buildCywareAuthParams();
+        if (!authParams) break;
+
+        const params = new URLSearchParams({
+          ...Object.fromEntries(Object.entries(authParams).map(([k, v]) => [k, String(v)])),
+          page_size: String(CYWARE_PAGE_SIZE),
+          page: String(page),
+          created_date__gte: String(startEpoch),
+          created_date__lte: String(endEpochRange)
+        });
+
+        const res = await fetch(`${CYWARE_BASE_URL}/openapi/v1/incident/?${params.toString()}`, {
+          cache: 'no-store'
+        });
+
+        if (!res.ok) break;
+
+        const data = await res.json();
+        const pageResults: CywareIncident[] = Array.isArray(data?.results) ? data.results : [];
+        if (pageResults.length === 0) break;
+
+        rows.push(...pageResults);
+        if (!data?.next || pageResults.length < CYWARE_PAGE_SIZE) break;
+        page += 1;
+      }
+
+      return rows;
+    };
+
+    let incidents = await fetchIncidentsByRange(primaryStartEpoch, endEpoch);
+
+    let reportIncidents = incidents
+      .sort((a, b) => new Date(b?.created || 0).getTime() - new Date(a?.created || 0).getTime());
+
+    if (reportIncidents.length === 0) {
+      incidents = await fetchIncidentsByRange(fallbackStartEpoch, endEpoch);
+      reportIncidents = incidents
+        .sort((a, b) => new Date(b?.created || 0).getTime() - new Date(a?.created || 0).getTime());
+    }
+
+    const statusList = [...new Set(incidents.map((item) => String(item?.status ?? '').trim()).filter(Boolean))];
+    console.log(`[Cyware Pending] fetched=${incidents.length}, returned=${reportIncidents.length}, statuses=${statusList.join(', ')}`);
+
+    return await mapWithConcurrency(
+      reportIncidents,
+      10,
+      async (item) => {
+        const fabrinetId = item?.unique_id ? await fetchCywareIncidentDetail(String(item.unique_id)) : '';
+        return {
+          inc_no: fabrinetId || item?.readable_id || '-',
+          incident_name: item?.title || '-',
+          status: normalizePendingStatus(item?.status)
+        };
+      }
+    );
+  } catch (error) {
+    console.error('Cyware Pending Fetch Error:', error);
+    return [];
+  }
 }
 
 async function fetchAlarmDetails(alarmId: string, tokenRef: { value: string }) {
@@ -302,12 +447,39 @@ async function fetchAlienVaultData(startDate: string, endDate: string) {
       return aStr.localeCompare(bStr, 'en', { sensitivity: 'base', numeric: true });
     };
 
+    const usernameSort = (a: [string, number], b: [string, number]) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+
+      const aStr = String(a[0]);
+      const bStr = String(b[0]);
+
+      const aStartsWithBackslash = aStr.startsWith("\\");
+      const bStartsWithBackslash = bStr.startsWith("\\");
+      if (!aStartsWithBackslash && bStartsWithBackslash) return -1;
+      if (aStartsWithBackslash && !bStartsWithBackslash) return 1;
+
+      const startsWithLower = (value: string) => {
+        const first = value.trim().charAt(0);
+        if (!first) return false;
+        return first >= 'a' && first <= 'z';
+      };
+
+      const aLower = startsWithLower(aStr);
+      const bLower = startsWithLower(bStr);
+      if (aLower !== bLower) return aLower ? 1 : -1;
+      const nameOrder = aStr.localeCompare(bStr, 'en', { sensitivity: 'base', numeric: true });
+      if (nameOrder !== 0) return nameOrder;
+      return 0;
+    };
+
     const table3Data = Array.from(statsMap.entries()).map(([method, data]) => {
       const usernames = Array.from(data.destUsers.entries())
-        .sort(customSort)
+        .sort(usernameSort)
+        .slice(0, MAX_DEST_USERNAMES_PER_METHOD)
         .map(([name, count]) => `${name} (${count})`);
       const sources = Array.from(data.sources.entries())
         .sort(customSort)
+        .slice(0, MAX_DEST_USERNAMES_PER_METHOD)
         .map(([name, count]) => `${name} (${count})`);
 
       return {
@@ -340,22 +512,14 @@ export async function GET(request: Request) {
     }
 
     console.log(`🔄 Processing Report: ${startDate} to ${endDate}`);
-
-    const [avData, sbData] = await Promise.all([
+    const [avData, pendingData] = await Promise.all([
       fetchAlienVaultData(startDate, endDate),
-      
-      supabase
-        .from('incidents')
-        .select('inc_no, incident_name, status')
-        .eq('customer', 'Fabrinet')
-        .gte('incident_date', startDate)
-        .lte('incident_date', endDate)
-        .order('incident_date', { ascending: false })
+      fetchCywarePendingIncidents(startDate, endDate)
     ]);
 
     return NextResponse.json({
       alarms: avData.alarms,
-      pendings: sbData.data || [],
+      pendings: pendingData || [],
       actions: avData.actions
     });
 

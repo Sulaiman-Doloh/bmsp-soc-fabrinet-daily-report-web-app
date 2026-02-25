@@ -33,16 +33,6 @@ function paginateData<T>(array: T[], firstPageSize: number, otherPageSize: numbe
   return pages;
 }
 
-const ACTION_CHUNK_SIZE = 40;
-
-function chunkArray<T>(array: T[], size: number) {
-  const chunks = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
-}
-
 function formatReportDate(dateStr: string) {
   if (!dateStr) return "";
   const [year, month, day] = dateStr.split("-").map(Number);
@@ -69,6 +59,7 @@ function buildActionPages(data: any[], maxPerPage: number) {
   let currentPage: any[] = [];
   let currentUnits = 0;
   let currentMethodsSet = new Set<string>();
+  const otherPageLimit = Math.max(maxPerPage - 10, 1);
 
   const flushPage = () => {
     if (currentPage.length > 0) {
@@ -80,58 +71,28 @@ function buildActionPages(data: any[], maxPerPage: number) {
   };
 
   data.forEach((item) => {
-    const usernames = Array.isArray(item.usernames) ? [...item.usernames] : [];
-    const sources = Array.isArray(item.sources) ? [...item.sources] : [];
-    let remaining = Math.max(usernames.length, sources.length, 1);
-    let offset = 0;
+    const usernames = Array.isArray(item.usernames) ? item.usernames : [];
+    const sources = Array.isArray(item.sources) ? item.sources : [];
+    const itemUnits = Math.max(usernames.length, sources.length, 1);
     const methodName = item.methodName || '';
+    const isFirstReportActionPage = pages.length === 0;
+    const effectiveLimit = isFirstReportActionPage ? maxPerPage : otherPageLimit;
+    const methodLimitReached = !currentMethodsSet.has(methodName) && currentMethodsSet.size >= 12;
+    const pageCapacityReached = currentPage.length > 0 && (currentUnits + itemUnits > effectiveLimit);
 
-    while (remaining > 0) {
-      // เช็คว่ามี 12 methods แล้วและกำลังจะเพิ่ม method ใหม่
-      if (!currentMethodsSet.has(methodName) && currentMethodsSet.size >= 12) {
-        flushPage();
-      }
-      
-      // คำนวณ limit สำหรับหน้าปัจจุบัน
-      const effectiveLimit = currentPage.length > 0 ? 40 : 50;
-      const maxChunkSize = currentPage.length > 0 ? 40 : 50;
-      
-      // คำนวณพื้นที่ว่างในหน้า
-      const remainingCapacity = effectiveLimit - currentUnits;
-      
-      if (remainingCapacity <= 0) {
-        // หน้าเต็มแล้ว → flush และเริ่มหน้าใหม่
-        flushPage();
-        continue;
-      }
-      
-      // คำนวณขนาด chunk ที่จะใส่
-      const chunkSize = Math.min(
-        maxChunkSize,
-        remaining,
-        remainingCapacity
-      );
-
-      const chunkItem = {
-        ...item,
-        usernames: usernames.slice(offset, offset + chunkSize),
-        sources: sources.slice(offset, offset + chunkSize)
-      };
-
-      currentPage.push(chunkItem);
-      currentUnits += chunkSize;
-      offset += chunkSize;
-      remaining -= chunkSize;
-      
-      // เพิ่ม methodName เข้า Set (ถ้ายังไม่มี)
-      currentMethodsSet.add(methodName);
+    // Keep each method in one page; never split one method across pages.
+    if (methodLimitReached || pageCapacityReached) {
+      flushPage();
     }
+
+    currentPage.push(item);
+    currentUnits += itemUnits;
+    currentMethodsSet.add(methodName);
   });
 
   flushPage();
   return pages;
 }
-
 // --- Component: A4 Page ---
 const A4Page = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => {
   return (
@@ -146,7 +107,7 @@ const A4Page = ({ children, className = "" }: { children: React.ReactNode, class
 
 // --- Component: Header Image ---
 const HeaderImage = () => (
-  <div className="w-full h-auto mb-6">
+  <div className="w-full h-auto mb-0">
      <img src="/images/header.png" alt="Report Header" className="w-full h-auto object-cover" />
   </div>
 );
@@ -205,9 +166,9 @@ export default function ReportPage() {
         // --- 3.2 Table 2 (Pending) ---
         // Mapping field ให้ตรงกับ Component
         const mappedPending = (result.pendings || []).map((item: any) => ({
-            id: item.inc_no,
-            name: item.incident_name,
-            stage: item.status || "Pending"
+            inc_no: item.inc_no,
+            incident_name: item.incident_name,
+            status: item.status || "Pending"
         }));
         setPendingData(mappedPending);
 
@@ -304,12 +265,12 @@ export default function ReportPage() {
                     {index === 0 && <HeaderImage />}
                     
                     {index === 0 && (
-                        <div className="mt-2 mb-8 text-lg text-black font-bold space-y-1.5 leading-snug">
+                        <div className="mt-2 mb-2 text-lg text-black font-bold space-y-1.5 leading-snug">
                             {/* ใช้ w-44 เพื่อจัดระเบียบข้อความ */}
-                            <div className="flex"><span className="w-33 font-bold">Report Date :</span> <span className="font-normal">{formatReportDate(reportDate)}</span></div>
-                            <div className="flex"><span className="w-25 font-bold">Report by :</span> <span className="font-normal">BMSP SOC Support</span></div>
-                            <div className="flex"><span className="w-39 font-bold">Customer Name :</span> <span className="font-normal">Fabrinet</span></div>
-                            <div className="flex"><span className="w-33 font-bold">Project Name :</span> <span className="font-normal">Fabrinet SOC</span></div>
+                            <div className="flex"><span className="w-27 font-bold">Report Date :</span> <span className="font-normal">{formatReportDate(reportDate)}</span></div>
+                            <div className="flex"><span className="w-23 font-bold">Report by :</span> <span className="font-normal">BMSP SOC Support</span></div>
+                            <div className="flex"><span className="w-35 font-bold">Customer Name :</span> <span className="font-normal">Fabrinet</span></div>
+                            <div className="flex"><span className="w-30 font-bold">Project Name :</span> <span className="font-normal">Fabrinet SOC</span></div>
                         </div>
                     )}
 
@@ -372,3 +333,4 @@ export default function ReportPage() {
     </div>
   );
 }
+
