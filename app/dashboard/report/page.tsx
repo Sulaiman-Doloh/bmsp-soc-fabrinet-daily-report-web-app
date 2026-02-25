@@ -165,7 +165,17 @@ export default function ReportPage() {
             inc_no: item.inc_no,
             incident_name: item.incident_name,
             status: item.status || "Pending"
-        }));
+        })).sort((a: any, b: any) => {
+            const extractNumericId = (value: string) => {
+              const text = String(value || "");
+              const match = text.match(/(\d+)(?!.*\d)/);
+              return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+            };
+            const aNum = extractNumericId(a.inc_no);
+            const bNum = extractNumericId(b.inc_no);
+            if (aNum !== bNum) return aNum - bNum;
+            return String(a.inc_no || "").localeCompare(String(b.inc_no || ""), "en", { numeric: true, sensitivity: "base" });
+        });
         setPendingData(mappedPending);
 
         // --- 3.3 Table 3 (Action) ---

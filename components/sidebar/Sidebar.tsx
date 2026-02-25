@@ -54,7 +54,7 @@ export default function Sidebar() {
       const html2canvas = html2canvasModule.default || html2canvasModule;
       const jspdfModule = await import("jspdf");
       const { jsPDF } = jspdfModule;
-      const filename = `SOC_Daily_Report_${reportDate}.pdf`;
+      const filename = `SOC Daily Report [Fabrinet]${reportDate}.pdf`;
 
       const pages = Array.from(reportRoot.querySelectorAll(".a4-page")) as HTMLElement[];
       if (pages.length === 0) return;
