@@ -55,6 +55,30 @@ function formatReportDate(dateStr: string) {
 }
 
 function buildActionPages(data: any[], maxPerPage: number) {
+  const rowOverheadUnits = 1;
+  const maxContentUnitsPerRow = Math.max(1, maxPerPage - rowOverheadUnits);
+  const normalizedRows: any[] = [];
+
+  // Keep method in one row by default, but split very large rows that cannot fit in one A4 page.
+  data.forEach((item) => {
+    const usernames = Array.isArray(item.usernames) ? item.usernames : [];
+    const sources = Array.isArray(item.sources) ? item.sources : [];
+    const contentUnits = Math.max(usernames.length, sources.length, 1);
+
+    if (contentUnits <= maxContentUnitsPerRow) {
+      normalizedRows.push(item);
+      return;
+    }
+
+    for (let offset = 0; offset < contentUnits; offset += maxContentUnitsPerRow) {
+      normalizedRows.push({
+        ...item,
+        usernames: usernames.slice(offset, offset + maxContentUnitsPerRow),
+        sources: sources.slice(offset, offset + maxContentUnitsPerRow),
+      });
+    }
+  });
+
   const pages: any[][] = [];
   let currentPage: any[] = [];
   let currentUnits = 0;
@@ -67,12 +91,10 @@ function buildActionPages(data: any[], maxPerPage: number) {
     }
   };
 
-  data.forEach((item) => {
+  normalizedRows.forEach((item) => {
     const usernames = Array.isArray(item.usernames) ? item.usernames : [];
     const sources = Array.isArray(item.sources) ? item.sources : [];
     const contentUnits = Math.max(usernames.length, sources.length, 1);
-    // Reserve extra vertical space per method row (cell padding + method title block)
-    const rowOverheadUnits = 2;
     const itemUnits = contentUnits + rowOverheadUnits;
     const effectiveLimit = maxPerPage;
     const pageCapacityReached = currentPage.length > 0 && (currentUnits + itemUnits > effectiveLimit);
