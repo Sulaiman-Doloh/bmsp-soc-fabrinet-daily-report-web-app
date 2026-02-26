@@ -56,10 +56,12 @@ function formatReportDate(dateStr: string) {
 
 function buildActionPages(data: any[], maxPerPage: number) {
   const rowOverheadUnits = 0.5;
+  const pageBottomBufferUnits = 3;
+  const effectivePageLimit = Math.max(1, maxPerPage - pageBottomBufferUnits);
   const methodCharsPerLine = 34;
   const usernameCharsPerLine = 30;
   const sourceCharsPerLine = 34;
-  const maxRowUnits = Math.max(1, maxPerPage - rowOverheadUnits);
+  const maxRowUnits = Math.max(1, effectivePageLimit - rowOverheadUnits);
   const normalizedRows: any[] = [];
 
   const estimateListUnits = (values: string[], charsPerLine: number) => {
@@ -189,7 +191,7 @@ function buildActionPages(data: any[], maxPerPage: number) {
 
     while (workingItem) {
       const itemUnits = estimateRowUnits(workingItem);
-      const remainingUnits = maxPerPage - currentUnits;
+      const remainingUnits = effectivePageLimit - currentUnits;
 
       if (currentPage.length === 0 || itemUnits <= remainingUnits) {
         currentPage.push(workingItem);
@@ -219,7 +221,7 @@ function buildActionPages(data: any[], maxPerPage: number) {
       const candidate = pages[i + 1][0];
       const candidateUnits = estimateRowUnits(candidate);
       const currentUnitsInPage = getPageUnits(pages[i]);
-      if (currentUnitsInPage + candidateUnits > maxPerPage) {
+      if (currentUnitsInPage + candidateUnits > effectivePageLimit) {
         break;
       }
       pages[i].push(candidate);
