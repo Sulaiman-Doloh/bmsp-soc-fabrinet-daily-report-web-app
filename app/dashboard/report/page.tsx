@@ -55,33 +55,123 @@ function formatReportDate(dateStr: string) {
 }
 
 function buildActionPages(data: any[], maxPerPage: number) {
-  const rowOverheadUnits = 1;
-  const maxContentUnitsPerRow = Math.max(1, maxPerPage - rowOverheadUnits);
+  const rowOverheadUnits = 0.5;
+  const methodCharsPerLine = 34;
+  const usernameCharsPerLine = 30;
+  const sourceCharsPerLine = 34;
+  const maxRowUnits = Math.max(1, maxPerPage - rowOverheadUnits);
   const normalizedRows: any[] = [];
+
+  const estimateListUnits = (values: string[], charsPerLine: number) => {
+    if (!values || values.length === 0) return 1;
+    return values.reduce((sum, value) => {
+      const text = String(value || "-");
+      const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
+      return sum + lines;
+    }, 0);
+  };
+
+  const estimateRowUnits = (item: any) => {
+    const usernames = Array.isArray(item.usernames) ? item.usernames : [];
+    const sources = Array.isArray(item.sources) ? item.sources : [];
+    const methodText = String(item.methodName || "-");
+
+    const methodUnits = Math.max(1, Math.ceil(methodText.length / methodCharsPerLine));
+    const usernameUnits = estimateListUnits(usernames, usernameCharsPerLine);
+    const sourceUnits = estimateListUnits(sources, sourceCharsPerLine);
+
+    return Math.max(methodUnits, usernameUnits, sourceUnits) + rowOverheadUnits;
+  };
 
   // Keep method in one row by default, but split very large rows that cannot fit in one A4 page.
   data.forEach((item) => {
     const usernames = Array.isArray(item.usernames) ? item.usernames : [];
     const sources = Array.isArray(item.sources) ? item.sources : [];
-    const contentUnits = Math.max(usernames.length, sources.length, 1);
+    const maxLen = Math.max(usernames.length, sources.length, 1);
 
-    if (contentUnits <= maxContentUnitsPerRow) {
+    if (estimateRowUnits(item) <= maxRowUnits) {
       normalizedRows.push(item);
       return;
     }
 
-    for (let offset = 0; offset < contentUnits; offset += maxContentUnitsPerRow) {
+    let start = 0;
+    while (start < maxLen) {
+      let end = start + 1;
+      let bestEnd = end;
+
+      while (end <= maxLen) {
+        const candidate = {
+          ...item,
+          usernames: usernames.slice(start, end),
+          sources: sources.slice(start, end)
+        };
+        if (estimateRowUnits(candidate) <= maxRowUnits) {
+          bestEnd = end;
+          end += 1;
+          continue;
+        }
+        break;
+      }
+
+      if (bestEnd <= start) bestEnd = start + 1;
+
       normalizedRows.push({
         ...item,
-        usernames: usernames.slice(offset, offset + maxContentUnitsPerRow),
-        sources: sources.slice(offset, offset + maxContentUnitsPerRow),
+        usernames: usernames.slice(start, bestEnd),
+        sources: sources.slice(start, bestEnd),
       });
+      start = bestEnd;
     }
   });
 
   const pages: any[][] = [];
   let currentPage: any[] = [];
   let currentUnits = 0;
+
+  const splitItemByCapacity = (item: any, capacityUnits: number) => {
+    const usernames = Array.isArray(item.usernames) ? item.usernames : [];
+    const sources = Array.isArray(item.sources) ? item.sources : [];
+    const maxLen = Math.max(usernames.length, sources.length, 1);
+    if (maxLen <= 1 || capacityUnits <= 0) {
+      return { fitPart: null as any, restPart: item };
+    }
+
+    let bestEnd = 0;
+    for (let end = 1; end <= maxLen; end += 1) {
+      const candidate = {
+        ...item,
+        usernames: usernames.slice(0, end),
+        sources: sources.slice(0, end),
+      };
+      if (estimateRowUnits(candidate) <= capacityUnits) {
+        bestEnd = end;
+      } else {
+        break;
+      }
+    }
+
+    if (bestEnd <= 0) {
+      return { fitPart: null as any, restPart: item };
+    }
+
+    const fitPart = {
+      ...item,
+      usernames: usernames.slice(0, bestEnd),
+      sources: sources.slice(0, bestEnd),
+    };
+
+    if (bestEnd >= maxLen) {
+      return { fitPart, restPart: null as any };
+    }
+
+    const restPart = {
+      ...item,
+      usernames: usernames.slice(bestEnd),
+      sources: sources.slice(bestEnd),
+    };
+
+    return { fitPart, restPart };
+  };
 
   const flushPage = () => {
     if (currentPage.length > 0) {
@@ -91,25 +181,53 @@ function buildActionPages(data: any[], maxPerPage: number) {
     }
   };
 
-  normalizedRows.forEach((item) => {
-    const usernames = Array.isArray(item.usernames) ? item.usernames : [];
-    const sources = Array.isArray(item.sources) ? item.sources : [];
-    const contentUnits = Math.max(usernames.length, sources.length, 1);
-    const itemUnits = contentUnits + rowOverheadUnits;
-    const effectiveLimit = maxPerPage;
-    const pageCapacityReached = currentPage.length > 0 && (currentUnits + itemUnits > effectiveLimit);
+  const getPageUnits = (pageItems: any[]) =>
+    pageItems.reduce((sum, entry) => sum + estimateRowUnits(entry), 0);
 
-    // Keep each method in one page; never split one method across pages.
-    if (pageCapacityReached) {
+  normalizedRows.forEach((item) => {
+    let workingItem = item;
+
+    while (workingItem) {
+      const itemUnits = estimateRowUnits(workingItem);
+      const remainingUnits = maxPerPage - currentUnits;
+
+      if (currentPage.length === 0 || itemUnits <= remainingUnits) {
+        currentPage.push(workingItem);
+        currentUnits += itemUnits;
+        workingItem = null;
+        continue;
+      }
+
+      const { fitPart, restPart } = splitItemByCapacity(workingItem, remainingUnits);
+      if (fitPart) {
+        currentPage.push(fitPart);
+        currentUnits += estimateRowUnits(fitPart);
+        flushPage();
+        workingItem = restPart;
+        continue;
+      }
+
       flushPage();
     }
-
-    currentPage.push(item);
-    currentUnits += itemUnits;
   });
 
   flushPage();
-  return pages;
+
+  // Rebalance pages: move first rows of next page upward when there is room.
+  for (let i = 0; i < pages.length - 1; i += 1) {
+    while (pages[i + 1].length > 0) {
+      const candidate = pages[i + 1][0];
+      const candidateUnits = estimateRowUnits(candidate);
+      const currentUnitsInPage = getPageUnits(pages[i]);
+      if (currentUnitsInPage + candidateUnits > maxPerPage) {
+        break;
+      }
+      pages[i].push(candidate);
+      pages[i + 1].shift();
+    }
+  }
+
+  return pages.filter((page) => page.length > 0);
 }
 // --- Component: A4 Page ---
 const A4Page = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => {
@@ -118,7 +236,9 @@ const A4Page = ({ children, className = "" }: { children: React.ReactNode, class
       className={`a4-page w-[210mm] min-h-[297mm] bg-white shadow-lg mb-8 mx-auto relative flex flex-col overflow-hidden
       print:shadow-none print:mb-0 print:break-after-page ${className}`}
     >
-      {children}
+      <div className="a4-safe-area">
+        {children}
+      </div>
     </div>
   );
 };
