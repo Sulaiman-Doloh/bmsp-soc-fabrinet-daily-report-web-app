@@ -55,8 +55,11 @@ function formatReportDate(dateStr: string) {
 }
 
 function buildActionPages(data: any[], maxPerPage: number) {
-  const rowOverheadUnits = 0.5;
+  const rowOverheadUnits = 1;
   const pageBottomBufferUnits = 3;
+  const minContinuationItems = 8;
+  const largeMethodRowThreshold = 50;
+  const smallMethodRowThreshold = 5;
   const effectivePageLimit = Math.max(1, maxPerPage - pageBottomBufferUnits);
   const methodCharsPerLine = 34;
   const usernameCharsPerLine = 30;
@@ -85,6 +88,12 @@ function buildActionPages(data: any[], maxPerPage: number) {
     return Math.max(methodUnits, usernameUnits, sourceUnits) + rowOverheadUnits;
   };
 
+  const getRowCount = (item: any) => {
+    const usernames = Array.isArray(item?.usernames) ? item.usernames : [];
+    const sources = Array.isArray(item?.sources) ? item.sources : [];
+    return Math.max(usernames.length, sources.length, 1);
+  };
+
   // Keep method in one row by default, but split very large rows that cannot fit in one A4 page.
   data.forEach((item) => {
     const usernames = Array.isArray(item.usernames) ? item.usernames : [];
@@ -97,6 +106,7 @@ function buildActionPages(data: any[], maxPerPage: number) {
     }
 
     let start = 0;
+    const ranges: Array<{ start: number; end: number }> = [];
     while (start < maxLen) {
       let end = start + 1;
       let bestEnd = end;
@@ -116,14 +126,60 @@ function buildActionPages(data: any[], maxPerPage: number) {
       }
 
       if (bestEnd <= start) bestEnd = start + 1;
-
-      normalizedRows.push({
-        ...item,
-        usernames: usernames.slice(start, bestEnd),
-        sources: sources.slice(start, bestEnd),
-      });
+      ranges.push({ start, end: bestEnd });
       start = bestEnd;
     }
+
+    // Rebalance last two chunks to avoid tiny orphan chunk on the next page.
+    if (ranges.length >= 2) {
+      const last = ranges[ranges.length - 1];
+      const lastLen = last.end - last.start;
+      if (lastLen < minContinuationItems) {
+        const prev = ranges[ranges.length - 2];
+        const combinedStart = prev.start;
+        const combinedEnd = last.end;
+        let bestPivot = -1;
+        let bestScore = Number.MAX_SAFE_INTEGER;
+
+        for (let pivot = combinedStart + 1; pivot <= combinedEnd - 1; pivot += 1) {
+          const leftCandidate = {
+            ...item,
+            usernames: usernames.slice(combinedStart, pivot),
+            sources: sources.slice(combinedStart, pivot)
+          };
+          const rightCandidate = {
+            ...item,
+            usernames: usernames.slice(pivot, combinedEnd),
+            sources: sources.slice(pivot, combinedEnd)
+          };
+          if (estimateRowUnits(leftCandidate) > maxRowUnits) continue;
+          if (estimateRowUnits(rightCandidate) > maxRowUnits) continue;
+
+          const leftLen = pivot - combinedStart;
+          const rightLen = combinedEnd - pivot;
+          const orphanPenalty = rightLen < minContinuationItems ? 1000 : 0;
+          const balanceScore = Math.abs(leftLen - rightLen);
+          const score = orphanPenalty + balanceScore;
+          if (score < bestScore) {
+            bestScore = score;
+            bestPivot = pivot;
+          }
+        }
+
+        if (bestPivot !== -1) {
+          ranges[ranges.length - 2] = { start: combinedStart, end: bestPivot };
+          ranges[ranges.length - 1] = { start: bestPivot, end: combinedEnd };
+        }
+      }
+    }
+
+    ranges.forEach((range) => {
+      normalizedRows.push({
+        ...item,
+        usernames: usernames.slice(range.start, range.end),
+        sources: sources.slice(range.start, range.end),
+      });
+    });
   });
 
   const pages: any[][] = [];
@@ -138,12 +194,54 @@ function buildActionPages(data: any[], maxPerPage: number) {
     }
   };
 
-  const getPageUnits = (pageItems: any[]) =>
-    pageItems.reduce((sum, entry) => sum + estimateRowUnits(entry), 0);
-
   normalizedRows.forEach((item) => {
     const itemUnits = estimateRowUnits(item);
     if (currentPage.length > 0 && currentUnits + itemUnits > effectivePageLimit) {
+      const lastItem = currentPage[currentPage.length - 1];
+      const lastRows = getRowCount(lastItem);
+      const currentRows = getRowCount(item);
+      const isLargeThenSmall =
+        lastRows >= largeMethodRowThreshold && currentRows <= smallMethodRowThreshold;
+      const isSmallThenLarge =
+        lastRows <= smallMethodRowThreshold && currentRows >= largeMethodRowThreshold;
+
+      if (isLargeThenSmall) {
+        const toleratedLimit = effectivePageLimit + smallMethodRowThreshold;
+        if (currentUnits + itemUnits <= toleratedLimit) {
+          currentPage.push(item);
+          currentUnits += itemUnits;
+          return;
+        }
+      }
+
+      // Handle 5 -> 50 case:
+      // move the small trailing method to the next page with the large method.
+      if (isSmallThenLarge && currentPage.length > 0) {
+        const movedSmall = currentPage.pop();
+        if (!movedSmall) {
+          flushPage();
+          currentPage.push(item);
+          currentUnits = estimateRowUnits(item);
+          return;
+        }
+        currentUnits -= estimateRowUnits(movedSmall);
+        flushPage();
+
+        const smallUnits = estimateRowUnits(movedSmall);
+        const toleratedLimit = effectivePageLimit + smallMethodRowThreshold;
+        if (smallUnits + itemUnits <= toleratedLimit) {
+          currentPage.push(movedSmall);
+          currentPage.push(item);
+          currentUnits = smallUnits + itemUnits;
+          return;
+        }
+
+        // fallback: keep large on new page if small+large still cannot fit together
+        currentPage.push(movedSmall);
+        currentUnits = smallUnits;
+        flushPage();
+      }
+
       flushPage();
     }
     currentPage.push(item);
@@ -151,20 +249,6 @@ function buildActionPages(data: any[], maxPerPage: number) {
   });
 
   flushPage();
-
-  // Rebalance pages: move first rows of next page upward when there is room.
-  for (let i = 0; i < pages.length - 1; i += 1) {
-    while (pages[i + 1].length > 0) {
-      const candidate = pages[i + 1][0];
-      const candidateUnits = estimateRowUnits(candidate);
-      const currentUnitsInPage = getPageUnits(pages[i]);
-      if (currentUnitsInPage + candidateUnits > effectivePageLimit) {
-        break;
-      }
-      pages[i].push(candidate);
-      pages[i + 1].shift();
-    }
-  }
 
   return pages.filter((page) => page.length > 0);
 }
