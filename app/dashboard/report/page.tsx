@@ -130,51 +130,6 @@ function buildActionPages(data: any[], maxPerPage: number) {
   let currentPage: any[] = [];
   let currentUnits = 0;
 
-  const splitItemByCapacity = (item: any, capacityUnits: number) => {
-    const usernames = Array.isArray(item.usernames) ? item.usernames : [];
-    const sources = Array.isArray(item.sources) ? item.sources : [];
-    const maxLen = Math.max(usernames.length, sources.length, 1);
-    if (maxLen <= 1 || capacityUnits <= 0) {
-      return { fitPart: null as any, restPart: item };
-    }
-
-    let bestEnd = 0;
-    for (let end = 1; end <= maxLen; end += 1) {
-      const candidate = {
-        ...item,
-        usernames: usernames.slice(0, end),
-        sources: sources.slice(0, end),
-      };
-      if (estimateRowUnits(candidate) <= capacityUnits) {
-        bestEnd = end;
-      } else {
-        break;
-      }
-    }
-
-    if (bestEnd <= 0) {
-      return { fitPart: null as any, restPart: item };
-    }
-
-    const fitPart = {
-      ...item,
-      usernames: usernames.slice(0, bestEnd),
-      sources: sources.slice(0, bestEnd),
-    };
-
-    if (bestEnd >= maxLen) {
-      return { fitPart, restPart: null as any };
-    }
-
-    const restPart = {
-      ...item,
-      usernames: usernames.slice(bestEnd),
-      sources: sources.slice(bestEnd),
-    };
-
-    return { fitPart, restPart };
-  };
-
   const flushPage = () => {
     if (currentPage.length > 0) {
       pages.push(currentPage);
@@ -187,30 +142,12 @@ function buildActionPages(data: any[], maxPerPage: number) {
     pageItems.reduce((sum, entry) => sum + estimateRowUnits(entry), 0);
 
   normalizedRows.forEach((item) => {
-    let workingItem = item;
-
-    while (workingItem) {
-      const itemUnits = estimateRowUnits(workingItem);
-      const remainingUnits = effectivePageLimit - currentUnits;
-
-      if (currentPage.length === 0 || itemUnits <= remainingUnits) {
-        currentPage.push(workingItem);
-        currentUnits += itemUnits;
-        workingItem = null;
-        continue;
-      }
-
-      const { fitPart, restPart } = splitItemByCapacity(workingItem, remainingUnits);
-      if (fitPart) {
-        currentPage.push(fitPart);
-        currentUnits += estimateRowUnits(fitPart);
-        flushPage();
-        workingItem = restPart;
-        continue;
-      }
-
+    const itemUnits = estimateRowUnits(item);
+    if (currentPage.length > 0 && currentUnits + itemUnits > effectivePageLimit) {
       flushPage();
     }
+    currentPage.push(item);
+    currentUnits += itemUnits;
   });
 
   flushPage();
