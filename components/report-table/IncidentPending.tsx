@@ -26,7 +26,7 @@ export default function PendingTable({ data }: Props) {
         <thead>
           <tr className="bg-white font-bold text-center">
             <th className="border border-black border-t-0 p-2 w-14 align-middle">No.</th>
-            <th className="border border-black border-t-0 p-2 w-35 align-middle">Incident ID</th>
+            <th className="border border-black border-t-0 p-2 w-43 align-middle">Incident ID</th>
             <th className="border border-black border-t-0 p-2 align-middle">Incident Name</th>
             <th className="border border-black border-t-0 p-2 w-24 align-middle">Status</th>
           </tr>

@@ -64,7 +64,7 @@ body {
 
 .report-table {
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -120,16 +120,8 @@ body {
   break-after: page;
   page-break-after: always;
   overflow: hidden;
-  padding: 0;
+  padding: 12mm 15mm;
   background: #ffffff;
-}
-
-.a4-safe-area {
-  width: calc(210mm - 30mm);
-  height: calc(297mm - 30mm);
-  margin: 15mm;
-  box-sizing: border-box;
-  overflow: hidden;
 }
 
 .download-mode,
@@ -156,16 +148,9 @@ body {
   .a4-page {
     width: 210mm;
     min-height: 297mm;
-    padding: 0;
+    padding: 15mm;
     margin: 0 auto;
     page-break-after: always;
-  }
-
-  .a4-safe-area {
-    width: calc(210mm - 30mm);
-    height: calc(297mm - 30mm);
-    margin: 15mm;
-    overflow: hidden;
   }
 
   .report-table thead {

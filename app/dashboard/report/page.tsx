@@ -326,11 +326,14 @@ export default function ReportPage() {
 
         // --- 3.2 Table 2 (Pending) ---
         // Mapping field ให้ตรงกับ Component
-        const mappedPending = (result.pendings || []).map((item: any) => ({
+        const mappedPending = (result.pendings || [])
+        .map((item: any) => ({
             inc_no: item.inc_no,
             incident_name: item.incident_name,
             status: item.status || "Pending"
-        })).sort((a: any, b: any) => {
+        }))
+        .filter((item: any) => String(item.inc_no || "").trim().startsWith("Fabrinet-INC"))
+        .sort((a: any, b: any) => {
             const extractNumericId = (value: string) => {
               const text = String(value || "");
               const match = text.match(/(\d+)(?!.*\d)/);
