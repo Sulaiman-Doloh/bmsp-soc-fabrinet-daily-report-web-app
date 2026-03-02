@@ -55,17 +55,19 @@ function formatReportDate(dateStr: string) {
 }
 
 function buildActionPages(data: any[], maxPerPage: number) {
-  const rowOverheadUnits = 1;
-  const pageBottomBufferUnits = 3;
-  const minContinuationItems = 8;
-  const largeMethodRowThreshold = 50;
-  const smallMethodRowThreshold = 5;
+  const rowOverheadUnits = 2;
+  const pageBottomBufferUnits = 8;
   const effectivePageLimit = Math.max(1, maxPerPage - pageBottomBufferUnits);
   const methodCharsPerLine = 34;
   const usernameCharsPerLine = 30;
   const sourceCharsPerLine = 34;
-  const maxRowUnits = Math.max(1, effectivePageLimit - rowOverheadUnits);
-  const normalizedRows: any[] = [];
+  const largeMethodRowThreshold = 50;
+  const smallMethodRowThreshold = 5;
+  const normalizedRows: any[] = data.map((item) => ({
+    ...item,
+    usernames: Array.isArray(item?.usernames) ? item.usernames : [],
+    sources: Array.isArray(item?.sources) ? item.sources : [],
+  }));
 
   const estimateListUnits = (values: string[], charsPerLine: number) => {
     if (!values || values.length === 0) return 1;
@@ -93,94 +95,6 @@ function buildActionPages(data: any[], maxPerPage: number) {
     const sources = Array.isArray(item?.sources) ? item.sources : [];
     return Math.max(usernames.length, sources.length, 1);
   };
-
-  // Keep method in one row by default, but split very large rows that cannot fit in one A4 page.
-  data.forEach((item) => {
-    const usernames = Array.isArray(item.usernames) ? item.usernames : [];
-    const sources = Array.isArray(item.sources) ? item.sources : [];
-    const maxLen = Math.max(usernames.length, sources.length, 1);
-
-    if (estimateRowUnits(item) <= maxRowUnits) {
-      normalizedRows.push(item);
-      return;
-    }
-
-    let start = 0;
-    const ranges: Array<{ start: number; end: number }> = [];
-    while (start < maxLen) {
-      let end = start + 1;
-      let bestEnd = end;
-
-      while (end <= maxLen) {
-        const candidate = {
-          ...item,
-          usernames: usernames.slice(start, end),
-          sources: sources.slice(start, end)
-        };
-        if (estimateRowUnits(candidate) <= maxRowUnits) {
-          bestEnd = end;
-          end += 1;
-          continue;
-        }
-        break;
-      }
-
-      if (bestEnd <= start) bestEnd = start + 1;
-      ranges.push({ start, end: bestEnd });
-      start = bestEnd;
-    }
-
-    // Rebalance last two chunks to avoid tiny orphan chunk on the next page.
-    if (ranges.length >= 2) {
-      const last = ranges[ranges.length - 1];
-      const lastLen = last.end - last.start;
-      if (lastLen < minContinuationItems) {
-        const prev = ranges[ranges.length - 2];
-        const combinedStart = prev.start;
-        const combinedEnd = last.end;
-        let bestPivot = -1;
-        let bestScore = Number.MAX_SAFE_INTEGER;
-
-        for (let pivot = combinedStart + 1; pivot <= combinedEnd - 1; pivot += 1) {
-          const leftCandidate = {
-            ...item,
-            usernames: usernames.slice(combinedStart, pivot),
-            sources: sources.slice(combinedStart, pivot)
-          };
-          const rightCandidate = {
-            ...item,
-            usernames: usernames.slice(pivot, combinedEnd),
-            sources: sources.slice(pivot, combinedEnd)
-          };
-          if (estimateRowUnits(leftCandidate) > maxRowUnits) continue;
-          if (estimateRowUnits(rightCandidate) > maxRowUnits) continue;
-
-          const leftLen = pivot - combinedStart;
-          const rightLen = combinedEnd - pivot;
-          const orphanPenalty = rightLen < minContinuationItems ? 1000 : 0;
-          const balanceScore = Math.abs(leftLen - rightLen);
-          const score = orphanPenalty + balanceScore;
-          if (score < bestScore) {
-            bestScore = score;
-            bestPivot = pivot;
-          }
-        }
-
-        if (bestPivot !== -1) {
-          ranges[ranges.length - 2] = { start: combinedStart, end: bestPivot };
-          ranges[ranges.length - 1] = { start: bestPivot, end: combinedEnd };
-        }
-      }
-    }
-
-    ranges.forEach((range) => {
-      normalizedRows.push({
-        ...item,
-        usernames: usernames.slice(range.start, range.end),
-        sources: sources.slice(range.start, range.end),
-      });
-    });
-  });
 
   const pages: any[][] = [];
   let currentPage: any[] = [];
@@ -396,7 +310,18 @@ export default function ReportPage() {
     if (aRank !== bRank) return aRank - bRank;
     return aKey.localeCompare(bKey);
   });
-  const actionPages = buildActionPages(sortedActionData, 55);
+  const actionPages = buildActionPages(sortedActionData, 50);
+  const getActionDensity = (pageData: any[]) => {
+    const maxItems = pageData.reduce((max, item) => {
+      const usernamesLen = Array.isArray(item?.usernames) ? item.usernames.length : 0;
+      const sourcesLen = Array.isArray(item?.sources) ? item.sources.length : 0;
+      return Math.max(max, usernamesLen, sourcesLen);
+    }, 0);
+    if (maxItems >= 200) return "ultra";
+    if (maxItems >= 140) return "dense";
+    if (maxItems >= 90) return "compact";
+    return "normal";
+  };
 
   if (!reportDate) {
     return (
@@ -489,15 +414,15 @@ export default function ReportPage() {
       <div id="page-3">
          {actionPages.length > 0 ? (
             actionPages.map((pageData, index) => (
-              <A4Page key={`action-page-${index}`}>
-                <div className="pt-4">
-                  <RecommendAction data={pageData} />
+              <A4Page key={`action-page-${index}`} className="action-wide-page">
+                <div>
+                  <RecommendAction data={pageData} density={getActionDensity(pageData)} />
                 </div>
               </A4Page>
             ))
          ) : (
-            <A4Page>
-              <div className="pt-4">
+            <A4Page className="action-wide-page">
+              <div>
                 <RecommendAction data={[]} />
               </div>
             </A4Page>
