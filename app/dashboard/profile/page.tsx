@@ -91,14 +91,14 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold text-slate-800">User Profile</h1>
+      <h1 className="text-2xl font-bold text-slate-800text-white">User Profile</h1>
       <p className="text-slate-500 mt-1">Update your account information.</p>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="text-sm text-slate-600">First Name</label>
           <input
-            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2"
+            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-800 text-white"
             value={form.firstName}
             onChange={(e) => setField("firstName", e.target.value)}
           />
@@ -106,7 +106,7 @@ export default function ProfilePage() {
         <div>
           <label className="text-sm text-slate-600">Last Name</label>
           <input
-            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2"
+            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-800 text-white"
             value={form.lastName}
             onChange={(e) => setField("lastName", e.target.value)}
           />
@@ -114,7 +114,7 @@ export default function ProfilePage() {
         <div>
           <label className="text-sm text-slate-600">Phone Number</label>
           <input
-            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2"
+            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-800 text-white"
             value={form.phone}
             onChange={(e) => setField("phone", e.target.value)}
           />
@@ -122,7 +122,7 @@ export default function ProfilePage() {
         <div>
           <label className="text-sm text-slate-600">Department</label>
           <input
-            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2"
+            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-800 text-white"
             value={form.department}
             onChange={(e) => setField("department", e.target.value)}
           />
@@ -130,7 +130,7 @@ export default function ProfilePage() {
         <div className="md:col-span-2">
           <label className="text-sm text-slate-600">Email</label>
           <input
-            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-50 text-slate-500"
+            className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-800 text-white"
             value={form.email}
             disabled
           />

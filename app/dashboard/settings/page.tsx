@@ -34,7 +34,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
+      <h1 className="text-2xl font-bold text-slate-800 text-white">Settings</h1>
       <p className="text-slate-500 mt-1">Manage your account security.</p>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mt-6">
@@ -48,7 +48,7 @@ export default function SettingsPage() {
             <label className="text-sm text-slate-600">New Password</label>
             <input
               type="password"
-              className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2"
+              className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-800 text-white"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -57,7 +57,7 @@ export default function SettingsPage() {
             <label className="text-sm text-slate-600">Confirm New Password</label>
             <input
               type="password"
-              className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2"
+              className="mt-1 w-full border border-slate-300 rounded-md px-3 py-2 bg-slate-800 text-white"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />

@@ -34,11 +34,13 @@ function Icon({
 
 function NavButton({
   active,
+  collapsed,
   label,
   iconPath,
   onClick,
 }: {
   active?: boolean;
+  collapsed?: boolean;
   label: string;
   iconPath: string;
   onClick: () => void;
@@ -49,10 +51,13 @@ function NavButton({
       className={clsx(
         "group w-full rounded-xl border px-3 py-3 text-left transition",
         "flex items-center gap-3",
+        collapsed && "justify-center px-0",
         active
           ? "border-cyan-400/40 bg-cyan-500/10 text-cyan-100 shadow-[0_0_0_1px_rgba(34,211,238,0.16)_inset]"
           : "border-white/10 bg-white/[0.03] text-slate-200 hover:border-white/20 hover:bg-white/[0.06]"
       )}
+      title={collapsed ? label : undefined}
+      aria-label={label}
     >
       <span
         className={clsx(
@@ -64,7 +69,7 @@ function NavButton({
       >
         <Icon path={iconPath} />
       </span>
-      <span className="font-medium tracking-[0.01em]">{label}</span>
+      {!collapsed && <span className="font-medium tracking-[0.01em]">{label}</span>}
     </button>
   );
 }
@@ -195,7 +200,7 @@ export default function Sidebar() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-5">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5">
           <section className="mb-5">
             <button
               onClick={() => setIsReportSocOpen((prev) => !prev)}
@@ -237,9 +242,9 @@ export default function Sidebar() {
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
                   disabled={isRunning}
-                  className="h-12 w-full rounded-xl border border-cyan-100/20 bg-black/25 px-3 text-[15px] text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-400/25 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="appearance h-12 w-full rounded-xl border border-cyan-100/20 bg-black/25 px-3 text-[15px] text-white outline-none transition placeholder:text-slate-400 focus:border-cyan-300/60 focus:ring-2 focus:ring-cyan-400/25 disabled:cursor-not-allowed disabled:opacity-70"
                 />
-
+  
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     onClick={handleRunReport}
@@ -262,6 +267,7 @@ export default function Sidebar() {
             <div className="mt-3 space-y-2">
               <NavButton
                 active={pathname.startsWith("/dashboard/report")}
+                collapsed={isCollapsed}
                 label={isCollapsed ? "Report" : "Fabrinet Report"}
                 iconPath="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6"
                 onClick={() => router.push("/dashboard/report")}
@@ -279,12 +285,14 @@ export default function Sidebar() {
             <div className="space-y-2">
               <NavButton
                 active={pathname.startsWith("/dashboard/settings")}
+                collapsed={isCollapsed}
                 label="Settings"
                 iconPath="M12 3a2 2 0 0 0-2 2v.4a1.7 1.7 0 0 1-1.3 1.6l-.5.1a1.7 1.7 0 0 1-1.8-.7l-.2-.3a2 2 0 0 0-2.7-.7l-.4.2a2 2 0 0 0-.7 2.7l.2.4a1.7 1.7 0 0 1 0 1.8l-.2.4a2 2 0 0 0 .7 2.7l.4.2a2 2 0 0 0 2.7-.7l.2-.3a1.7 1.7 0 0 1 1.8-.7l.5.1A1.7 1.7 0 0 1 10 18.6V19a2 2 0 0 0 2 2h.5a2 2 0 0 0 2-2v-.4a1.7 1.7 0 0 1 1.3-1.6l.5-.1a1.7 1.7 0 0 1 1.8.7l.2.3a2 2 0 0 0 2.7.7l.4-.2a2 2 0 0 0 .7-2.7l-.2-.4a1.7 1.7 0 0 1 0-1.8l.2-.4a2 2 0 0 0-.7-2.7l-.4-.2a2 2 0 0 0-2.7.7l-.2.3a1.7 1.7 0 0 1-1.8.7l-.5-.1A1.7 1.7 0 0 1 14.5 5V5a2 2 0 0 0-2-2z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
                 onClick={() => router.push("/dashboard/settings")}
               />
               <NavButton
                 active={pathname.startsWith("/dashboard/profile")}
+                collapsed={isCollapsed}
                 label="User Profile"
                 iconPath="M20 21a8 8 0 0 0-16 0 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
                 onClick={() => router.push("/dashboard/profile")}
@@ -293,12 +301,17 @@ export default function Sidebar() {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="group mt-1 flex w-full items-center gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-3 text-left text-rose-200 transition hover:border-rose-300/45 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                className={clsx(
+                  "group mt-1 flex w-full items-center gap-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-3 text-left text-rose-200 transition hover:border-rose-300/45 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60",
+                  isCollapsed && "justify-center px-0"
+                )}
+                title={isCollapsed ? "Logout" : undefined}
+                aria-label="Logout"
               >
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-300/35 bg-rose-500/20 text-rose-100">
                   <Icon path="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" />
                 </span>
-                <span className="font-medium">
+                <span className={clsx("font-medium", isCollapsed && "hidden")}>
                   {isLoggingOut ? "Logging out..." : "Logout"}
                 </span>
               </button>

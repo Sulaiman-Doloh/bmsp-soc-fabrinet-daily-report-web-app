@@ -3,7 +3,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-export default function LoginForm({ onSubmit }: { onSubmit: () => void }) {
+export default function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,8 +17,6 @@ export default function LoginForm({ onSubmit }: { onSubmit: () => void }) {
     if (error) {
       alert(error.message);
     } else {
-      onSubmit();
-      router.refresh();
       router.push("/dashboard/report");
     }
   };
