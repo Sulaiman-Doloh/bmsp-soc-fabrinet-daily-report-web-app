@@ -20,7 +20,6 @@ const CYWARE_ACCESS_ID = process.env.CYWARE_ACCESS_ID || process.env.ACCESS_ID;
 const CYWARE_SECRET_KEY = process.env.CYWARE_SECRET_KEY || process.env.SECRET_KEY;
 const CYWARE_BASE_URL = process.env.CYWARE_BASE_URL || process.env.BASE_URL || 'https://bangkokmsp.cyware.com/cftrapi';
 const CYWARE_PAGE_SIZE = 100;
-const CYWARE_PENDING_LOOKBACK_DAYS = 90;
 const MAX_DEST_USERNAMES_PER_METHOD = 50;
 
 type CywareIncident = {
@@ -165,7 +164,6 @@ async function fetchCywarePendingIncidents(startDate: string, endDate: string): 
   try {
     const endEpoch = Math.floor(getThaiDayEnd(endDate) / 1000);
     const primaryStartEpoch = Math.floor(getThaiDayStart(startDate) / 1000);
-    const fallbackStartEpoch = endEpoch - (CYWARE_PENDING_LOOKBACK_DAYS * 24 * 60 * 60);
 
     const fetchIncidentsByRange = async (startEpoch: number, endEpochRange: number) => {
       const rows: CywareIncident[] = [];
@@ -201,21 +199,21 @@ async function fetchCywarePendingIncidents(startDate: string, endDate: string): 
       return rows;
     };
 
-    let incidents = await fetchIncidentsByRange(primaryStartEpoch, endEpoch);
-
-    let reportIncidents = incidents
+    const incidents = await fetchIncidentsByRange(primaryStartEpoch, endEpoch);
+    const reportIncidents = incidents
       .sort((a, b) => new Date(b?.created || 0).getTime() - new Date(a?.created || 0).getTime());
 
+    const statusList = [...new Set(incidents.map((item) => String(item?.status ?? '').trim()).filter(Boolean))];
     if (reportIncidents.length === 0) {
-      incidents = await fetchIncidentsByRange(fallbackStartEpoch, endEpoch);
-      reportIncidents = incidents
-        .sort((a, b) => new Date(b?.created || 0).getTime() - new Date(a?.created || 0).getTime());
+      console.log(
+        `[Cyware Pending] no rows in selected range ${startDate}..${endDate}. ` +
+        `Returning empty pending rows for this date range.`
+      );
     }
 
-    const statusList = [...new Set(incidents.map((item) => String(item?.status ?? '').trim()).filter(Boolean))];
     console.log(`[Cyware Pending] fetched=${incidents.length}, returned=${reportIncidents.length}, statuses=${statusList.join(', ')}`);
 
-    return await mapWithConcurrency(
+    const mapped = await mapWithConcurrency(
       reportIncidents,
       10,
       async (item) => {
@@ -227,6 +225,8 @@ async function fetchCywarePendingIncidents(startDate: string, endDate: string): 
         };
       }
     );
+
+    return mapped;
   } catch (error) {
     console.error('Cyware Pending Fetch Error:', error);
     return [];

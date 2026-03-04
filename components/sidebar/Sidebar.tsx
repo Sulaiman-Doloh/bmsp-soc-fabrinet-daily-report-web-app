@@ -146,7 +146,7 @@ export default function Sidebar() {
                       value={selectedDate}
                       onChange={handleDateChange}
                       disabled={isRunning}
-                      className="w-full bg-[#1a234d] border border-gray-600 text-white text-sm rounded-md px-3 py-2"
+                      className="appearance-none w-full bg-[#1a234d] border border-gray-600 text-white text-sm rounded-md px-3 py-2"
                     />
 
                     <div className="mt-3 flex gap-2">
@@ -183,7 +183,7 @@ export default function Sidebar() {
               </button>
 
               {/* Daily */}
-              <button
+              {/* <button
                 onClick={() => setActiveReport("daily")}
                 className={`w-full text-left px-4 py-2 rounded-md transition flex items-center gap-2 text-sm font-medium ${
                   activeReport === "daily"
@@ -193,19 +193,19 @@ export default function Sidebar() {
               >
                 <span>📊</span>
                 {!isCollapsed && "Daily Report"}
-              </button>
+              </button> */}
 
               {/* Monthly */}
-              <button className="w-full text-left px-4 py-2 rounded-md transition flex items-center gap-2 text-sm font-medium text-gray-300 hover:bg-gray-800">
+              {/* <button className="w-full text-left px-4 py-2 rounded-md transition flex items-center gap-2 text-sm font-medium text-gray-300 hover:bg-gray-800">
                 <span>📈</span>
                 {!isCollapsed && "Monthly Report"}
-              </button>
+              </button> */}
             </div>
           )}
         </div>
 
         {/* System */}
-        <div className="px-3 border-t border-gray-800 pt-4 mt-2">
+        {/* <div className="px-3 border-t border-gray-800 pt-4 mt-2">
           {!isCollapsed && (
             <div className="text-gray-500 uppercase text-xs font-bold tracking-wider mb-2 px-2">
               System
@@ -221,7 +221,7 @@ export default function Sidebar() {
             <span>👤</span>
             {!isCollapsed && "User Profile"}
           </button>
-        </div>
+        </div> */}
       </nav>
 
       {/* Footer */}

@@ -1,65 +1,150 @@
-import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+const NavLink: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <a
+    href="#"
+    style={{
+      color: "#94a3b8",
+      textDecoration: "none",
+      fontSize: "0.85rem",
+      letterSpacing: "0.1em",
+      textTransform: "uppercase" as const,
+      fontFamily: "'DM Sans', sans-serif",
+      fontWeight: 500,
+    }}
+  >
+    {children}
+  </a>
+);
+
+const WelcomePage: React.FC = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #070b14; }
+        a:hover { color: #7dd3fc !important; }
+        .btn:hover {
+          background: linear-gradient(135deg, #0ea5e9, #38bdf8) !important;
+          color: #fff !important;
+          border-color: #38bdf8 !important;
+        }
+      `}</style>
+
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "linear-gradient(160deg, #0a0f1e 0%, #060a14 60%, #080d1a 100%)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Navbar */}
+        <nav
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "28px 60px",
+            borderBottom: "1px solid rgba(148,163,184,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 800,
+              fontSize: "1.2rem",
+              color: "#e2e8f0",
+              letterSpacing: "0.05em",
+            }}
+          >
+            SOC SYSTEM
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <main
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            padding: "80px 24px",
+          }}
+        >
+          <h1
+            style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 800,
+              fontSize: "clamp(3rem, 7vw, 5.5rem)",
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              marginBottom: 14,
+              background: "linear-gradient(135deg, #f1f5f9 0%, #7dd3fc 60%, #38bdf8 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+            }}
+          >
+            Security Operations Center
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p
+            style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 600,
+              fontSize: "1.1rem",
+              color: "#475569",
+              letterSpacing: "0.25em",
+              textTransform: "uppercase",
+              marginBottom: 28,
+            }}
+          >
+            To Our Company
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+          <p
+            style={{
+              color: "#475569",
+              fontSize: "0.9rem",
+              lineHeight: 1.9,
+              maxWidth: 480,
+              marginBottom: 44,
+              fontFamily: "'DM Sans', sans-serif",
+              fontWeight: 300,
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Security Operations Center 
+            (SOC) is a centralized function responsible for continuously 
+            monitoring, detecting, analyzing, and responding to cybersecurity threats within an organization 24/7.
+          </p>
+
+          <Link href="/dashboard/report"
+            className="btn"
+            style={{
+              background: "transparent",
+              border: "1.5px solid rgba(148,163,184,0.35)",
+              color: "#94a3b8",
+              padding: "13px 38px",
+              borderRadius: 100,
+              fontSize: "0.78rem",
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              fontFamily: "'DM Sans', sans-serif",
+              fontWeight: 500,
+              cursor: "pointer",
+              transition: "all 0.25s ease",
+            }}
           >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            Click to run report
+          </Link>
+        </main>
+      </div>
+    </>
   );
-}
+};
+
+export default WelcomePage;
