@@ -64,13 +64,16 @@ async function resolveAssetId(
   tokenRef: { value: string },
   cache: Map<string, string>
 ): Promise<string> {
+
   if (!assetId) return "Unknown Asset";
   if (cache.has(assetId)) return cache.get(assetId)!;
+
   try {
     for (let attempt = 0; attempt < 2; attempt += 1) {
+
       const res = await fetch(`${AV_BASE_URL}/assets/${assetId}`, {
-        headers: { 'Authorization': `Bearer ${tokenRef.value}` },
-        cache: 'no-store'
+        headers: { Authorization: `Bearer ${tokenRef.value}` },
+        cache: "no-store"
       });
 
       if (res.status === 401 && attempt === 0) {
@@ -83,25 +86,31 @@ async function resolveAssetId(
         cache.set(assetId, assetId);
         return assetId;
       }
+
       if (!res.ok) {
         cache.set(assetId, assetId);
         return assetId;
       }
 
       const data = await res.json();
+
       let name = data.name;
       if (!name) name = data.canonical;
-      if (!name && data.hostnames && data.hostnames.length > 0) name = data.hostnames[0];
-      if (!name && data.ip_addresses && data.ip_addresses.length > 0) name = data.ip_addresses[0];
+      if (!name && data.hostnames?.length > 0) name = data.hostnames[0];
+      if (!name && data.ip_addresses?.length > 0) name = data.ip_addresses[0];
 
       const finalName = name || assetId;
       cache.set(assetId, finalName);
+
       return finalName;
     }
+
   } catch (error) {
     cache.set(assetId, assetId);
     return assetId;
   }
+
+  return assetId; // 🔥 สำคัญ
 }
 
 function getThaiDayStart(dateStr: string) {
