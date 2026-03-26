@@ -1,13 +1,15 @@
-// components/Sidebar.tsx
+﻿// components/Sidebar.tsx
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useReport } from "@/context/ReportContext";
 
 export default function Sidebar() {
   const [isReportSocOpen, setIsReportSocOpen] = useState(true);
-  const [activeReport, setActiveReport] = useState("fabrinet");
-  const [isCollapsed, setIsCollapsed] = useState(false); // ✅ เพิ่ม state ย่อ/ขยาย
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const pathname = usePathname();
 
   const {
     selectedDate,
@@ -55,7 +57,8 @@ export default function Sidebar() {
       const jspdfModule = await import("jspdf");
       const { jsPDF } = jspdfModule;
 
-      const filename = `SOC Daily Report [Fabrinet]${reportDate}.pdf`;
+      const reportLabel = pathname?.includes("/dashboard/svi") ? "SVI" : "Fabrinet";
+      const filename = `SOC Daily Report [${reportLabel}]${reportDate}.pdf`;
 
       const pages = Array.from(
         reportRoot.querySelectorAll(".a4-page")
@@ -118,7 +121,7 @@ export default function Sidebar() {
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="text-gray-400 hover:text-white transition"
         >
-          ☰
+        
         </button>
       </div>
 
@@ -128,8 +131,8 @@ export default function Sidebar() {
             onClick={() => setIsReportSocOpen(!isReportSocOpen)}
             className="w-full flex items-center justify-between text-gray-400 hover:text-white mb-2 px-2 transition uppercase text-xs font-bold tracking-wider"
           >
-            {!isCollapsed && <span>📁 Report SOC</span>}
-            {!isCollapsed && <span>{isReportSocOpen ? "▼" : "▶"}</span>}
+            {!isCollapsed && <span>Report SOC</span>}
+            {!isCollapsed && <span>{isReportSocOpen ? "📂" : "📂"}</span>}
           </button>
 
           {isReportSocOpen && (
@@ -139,7 +142,7 @@ export default function Sidebar() {
                 <div className="px-2 mb-4">
                   <div className="bg-[#0b1640] p-3 rounded-lg border border-gray-700/50">
                     <label className="text-[10px] text-blue-300 font-bold uppercase mb-2 block">
-                      📅 Select Report Date
+                      Select Report Date
                     </label>
                     <input
                       type="date"
@@ -155,14 +158,14 @@ export default function Sidebar() {
                         disabled={!selectedDate || isRunning}
                         className="flex-1 bg-blue-600 disabled:bg-blue-900/40 hover:bg-blue-500 text-white font-bold py-2 rounded-md text-xs"
                       >
-                        ▶ Run
+                        Run
                       </button>
                       <button
                         onClick={handleStopReport}
                         disabled={!reportDate && !isRunning}
                         className="flex-1 bg-rose-600 disabled:bg-rose-900/40 hover:bg-rose-500 text-white font-bold py-2 rounded-md text-xs"
                       >
-                        ■ Stop
+                        Stop
                       </button>
                     </div>
                   </div>
@@ -170,34 +173,34 @@ export default function Sidebar() {
               )}
 
               {/* Fabrinet */}
-              <button
-                onClick={() => setActiveReport("fabrinet")}
+              <Link
+                href="/dashboard/report"
                 className={`w-full text-left px-4 py-2 rounded-md transition flex items-center gap-2 text-sm font-medium ${
-                  activeReport === "fabrinet"
+                  pathname?.includes("/dashboard/report")
                     ? "bg-blue-900/50 text-blue-300 border-l-4 border-blue-500"
                     : "text-gray-300 hover:bg-gray-800"
                 }`}
               >
-                <span>📄</span>
+                {/* <span></span> */}
                 {!isCollapsed && "Fabrinet Report"}
-              </button>
+              </Link>
 
-              {/* Daily */}
-              {/* <button
-                onClick={() => setActiveReport("daily")}
+              {/* SVI */}
+              <Link
+                href="/dashboard/svi"
                 className={`w-full text-left px-4 py-2 rounded-md transition flex items-center gap-2 text-sm font-medium ${
-                  activeReport === "daily"
+                  pathname?.includes("/dashboard/svi")
                     ? "bg-blue-900/50 text-blue-300 border-l-4 border-blue-500"
                     : "text-gray-300 hover:bg-gray-800"
                 }`}
               >
-                <span>📊</span>
-                {!isCollapsed && "Daily Report"}
-              </button> */}
+                <span></span>
+                {!isCollapsed && "SVI Report"}
+              </Link>
 
               {/* Monthly */}
               {/* <button className="w-full text-left px-4 py-2 rounded-md transition flex items-center gap-2 text-sm font-medium text-gray-300 hover:bg-gray-800">
-                <span>📈</span>
+                <span>ðŸ“ˆ</span>
                 {!isCollapsed && "Monthly Report"}
               </button> */}
             </div>
@@ -213,12 +216,12 @@ export default function Sidebar() {
           )}
 
           <button className="w-full text-left px-4 py-2 rounded-md transition flex items-center gap-3 text-gray-300 hover:bg-gray-800 hover:text-white">
-            <span>⚙️</span>
+            <span>âš™ï¸</span>
             {!isCollapsed && "Settings"}
           </button>
 
           <button className="w-full text-left px-4 py-2 rounded-md transition flex items-center gap-3 text-gray-300 hover:bg-gray-800 hover:text-white">
-            <span>👤</span>
+            <span>ðŸ‘¤</span>
             {!isCollapsed && "User Profile"}
           </button>
         </div> */}
@@ -231,7 +234,7 @@ export default function Sidebar() {
           disabled={!reportDate || isRunning}
           className="w-full bg-emerald-600 disabled:bg-emerald-900/40 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2"
         >
-          ⬇ {!isCollapsed && "Download PDF"}
+          {!isCollapsed && "Download PDF"}
         </button>
 
         {!isCollapsed && (
@@ -243,3 +246,7 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+
+
+
