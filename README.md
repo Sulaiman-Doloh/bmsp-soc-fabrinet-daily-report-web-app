@@ -129,7 +129,7 @@ docker compose up -d --build
 
 ---
 
-## 🖥️ Deploy on Server
+<!-- ## 🖥️ Deploy on Server
 
 ### 1. Create Folder
 
@@ -221,7 +221,7 @@ docker ps
 
 ```
 docker logs -f bmsp-soc-fabrinet-daily-report-web-app-web-1
-```
+``` -->
 
 ---
 
