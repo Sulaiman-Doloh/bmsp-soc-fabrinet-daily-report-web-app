@@ -280,9 +280,11 @@ export default function SviReportPage() {
         </div>
         <ChartPlaceholder title="Top 10 hosts with most detections" />
       </A4Page>
-
       <A4Page>
-        <SectionHeader src="/images/incident_summary_svi.png" alt="Incident Summary" />
+        <SectionHeader
+          src="/images/endpoint_detections_summary_svi.png"
+          alt="Endpoint Detections Summary"
+        />
         <table className="report-table w-full border-collapse text-[12px]">
           <thead>
             <tr className="bg-slate-300">
@@ -294,8 +296,8 @@ export default function SviReportPage() {
             </tr>
           </thead>
           <tbody>
-            {data.incidentSummary.length > 0 ? (
-              data.incidentSummary.map((row, index) => (
+            {data.endpointDetections.length > 0 ? (
+              data.endpointDetections.map((row, index) => (
                 <tr key={`${row.inc_no}-${index}`}>
                   <td className="border border-slate-500 p-2 text-center">{index + 1}</td>
                   <td className="border border-slate-500 p-2 text-center">{row.host_name}</td>
@@ -318,10 +320,7 @@ export default function SviReportPage() {
       </A4Page>
 
       <A4Page>
-        <SectionHeader
-          src="/images/endpoint_detections_summary_svi.png"
-          alt="Endpoint Detections Summary"
-        />
+        <SectionHeader src="/images/incident_summary_svi.png" alt="Incident Summary" />
         <table className="report-table w-full border-collapse text-[12px]">
           <thead>
             <tr className="bg-slate-300">
@@ -333,8 +332,8 @@ export default function SviReportPage() {
             </tr>
           </thead>
           <tbody>
-            {data.endpointDetections.length > 0 ? (
-              data.endpointDetections.map((row, index) => (
+            {data.incidentSummary.length > 0 ? (
+              data.incidentSummary.map((row, index) => (
                 <tr key={`${row.inc_no}-${index}`}>
                   <td className="border border-slate-500 p-2 text-center">{index + 1}</td>
                   <td className="border border-slate-500 p-2 text-center">{row.host_name}</td>

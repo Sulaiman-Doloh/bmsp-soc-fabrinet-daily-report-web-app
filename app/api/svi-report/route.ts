@@ -4,14 +4,6 @@ const CS_BASE_URL = process.env.CROWDSTRIKE_BASE_URL || "https://api.crowdstrike
 const CS_CLIENT_ID = process.env.CROWDSTRIKE_CLIENT_ID;
 const CS_CLIENT_SECRET = process.env.CROWDSTRIKE_CLIENT_SECRET;
 
-const LOGSCALE_BASE_URL = process.env.LOGSCALE_BASE_URL;
-const LOGSCALE_REPO = process.env.LOGSCALE_REPO;
-const LOGSCALE_TOKEN =
-  process.env.LOGSCALE_TOKEN ||
-  process.env.LOGSCALE_API_TOKEN ||
-  process.env.CROWDSTRIKE_LOGSCALE_TOKEN;
-const LOGSCALE_CID = process.env.LOGSCALE_CID;
-
 const ALERT_QUERY_LIMIT = 500;
 const ALERT_DETAIL_BATCH = 100;
 
@@ -196,185 +188,6 @@ async function fetchAlertDetails(token: string, ids: string[]) {
   return results;
 }
 
-function buildLogScaleTopHostsQuery(params: {
-  objective?: string | null;
-  tactic?: string | null;
-  severity?: string | null;
-}) {
-  const lines: string[] = [
-    '#repo=detections ExternalApiType=Event_EppDetectionSummaryEvent cid=?cid Hostname!="" Hostname!="N/A" SeverityName!=Informational'
-  ];
-
-  if (params.objective) {
-    lines.push(`| in(Objective, values=[${JSON.stringify(params.objective)}], ignoreCase=true)`);
-  }
-  if (params.tactic) {
-    lines.push(`| in(Tactic, values=[${JSON.stringify(params.tactic)}], ignoreCase=true)`);
-  }
-  if (params.severity) {
-    lines.push(`| in(SeverityName, values=[${JSON.stringify(params.severity)}], ignoreCase=true)`);
-  }
-
-  lines.push('| ComputerName := rename(Hostname)');
-  lines.push('| groupBy([CompositeId, ComputerName, Description], function=[], limit=max)');
-  lines.push('| groupBy(ComputerName, function=count(as=count), limit=max)');
-  lines.push('| sort(count, order=desc, limit=10)');
-
-  return lines.join("\n");
-}
-
-async function runLogScaleQuery(queryString: string, start: number, end: number, args: Record<string, string>) {
-  if (!LOGSCALE_BASE_URL || !LOGSCALE_REPO || !LOGSCALE_TOKEN) return null;
-
-  const createRes = await fetch(`${LOGSCALE_BASE_URL}/api/v1/repositories/${LOGSCALE_REPO}/queryjobs`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${LOGSCALE_TOKEN}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      queryString,
-      start,
-      end,
-      isLive: false,
-      allowEventSkipping: true,
-      noResultUntilDone: true,
-      timeZoneOffsetMinutes: 420,
-      arguments: args
-    }),
-    cache: "no-store"
-  });
-
-  if (!createRes.ok) {
-    const text = await createRes.text();
-    throw new Error(`LogScale queryjob error: ${createRes.status} ${text}`);
-  }
-
-  const createData = await createRes.json();
-  const jobId = createData?.id;
-  if (!jobId) return null;
-
-  const headers = { Authorization: `Bearer ${LOGSCALE_TOKEN}` };
-
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const pollRes = await fetch(
-      `${LOGSCALE_BASE_URL}/api/v1/repositories/${LOGSCALE_REPO}/queryjobs/${jobId}`,
-      { headers, cache: "no-store" }
-    );
-
-    if (!pollRes.ok) {
-      const text = await pollRes.text();
-      throw new Error(`LogScale poll error: ${pollRes.status} ${text}`);
-    }
-
-    const pollData = await pollRes.json();
-    const rows =
-      (Array.isArray(pollData?.events) && pollData.events) ||
-      (Array.isArray(pollData?.results?.events) && pollData.results.events) ||
-      (Array.isArray(pollData?.results?.rows) && pollData.results.rows) ||
-      (Array.isArray(pollData?.rows) && pollData.rows) ||
-      [];
-
-    if (pollData?.done) return rows;
-
-    const waitMs = typeof pollData?.metaData?.pollAfter === "number" ? pollData.metaData.pollAfter : 500;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(Math.max(waitMs, 200), 2000)));
-  }
-
-  return [];
-}
-
-async function fetchLogScaleTopHosts(params: {
-  cid?: string | null;
-  objective?: string | null;
-  tactic?: string | null;
-  severity?: string | null;
-  start: number;
-  end: number;
-}) {
-  if (!params.cid) return null;
-
-  const queryString = buildLogScaleTopHostsQuery({
-    objective: params.objective,
-    tactic: params.tactic,
-    severity: params.severity
-  });
-
-  const rows = await runLogScaleQuery(queryString, params.start, params.end, { cid: params.cid });
-  if (!rows) return null;
-
-  const mapped: TopRow[] = rows
-    .map((row: any) => {
-      const name = row?.ComputerName || row?.hostname || row?.HostName || row?.host || "";
-      const countVal = row?.count ?? row?._count ?? row?.Count;
-      const count = typeof countVal === "number" ? countVal : Number(countVal || 0);
-      return { name: String(name || ""), count };
-    })
-    .filter((row) => row.name)
-    .sort((a, b) => b.count - a.count);
-
-  return mapped.slice(0, 10);
-}
-
-function buildLogScaleTopUsersQuery(params: {
-  objective?: string | null;
-  tactic?: string | null;
-  severity?: string | null;
-}) {
-  const lines: string[] = [
-    '#repo=detections ExternalApiType=Event_EppDetectionSummaryEvent cid=?cid UserName!="" UserName!="N/A" SeverityName!=Informational'
-  ];
-
-  if (params.objective) {
-    lines.push(`| in(Objective, values=[${JSON.stringify(params.objective)}], ignoreCase=true)`);
-  }
-  if (params.tactic) {
-    lines.push(`| in(Tactic, values=[${JSON.stringify(params.tactic)}], ignoreCase=true)`);
-  }
-  if (params.severity) {
-    lines.push(`| in(SeverityName, values=[${JSON.stringify(params.severity)}], ignoreCase=true)`);
-  }
-
-  lines.push('| groupBy([CompositeId, UserName, Description], function=[], limit=max)');
-  lines.push('| groupBy(UserName, function=count(as=count), limit=max)');
-  lines.push('| sort(count, order=desc, limit=10)');
-
-  return lines.join("\n");
-}
-
-async function fetchLogScaleTopUsers(params: {
-  cid?: string | null;
-  objective?: string | null;
-  tactic?: string | null;
-  severity?: string | null;
-  start: number;
-  end: number;
-}) {
-  if (!params.cid) return null;
-
-  const queryString = buildLogScaleTopUsersQuery({
-    objective: params.objective,
-    tactic: params.tactic,
-    severity: params.severity
-  });
-
-  const rows = await runLogScaleQuery(queryString, params.start, params.end, { cid: params.cid });
-  if (!rows) return null;
-
-  const mapped: TopRow[] = rows
-    .map((row: any) => {
-      const name = row?.UserName || row?.username || row?.user || row?.User || "";
-      const countVal = row?.count ?? row?._count ?? row?.Count;
-      const count = typeof countVal === "number" ? countVal : Number(countVal || 0);
-      return { name: String(name || ""), count };
-    })
-    .filter((row) => row.name)
-    .sort((a, b) => b.count - a.count);
-
-  return mapped.slice(0, 10);
-}
-
 function buildTopRows(values: string[], limit = 10): TopRow[] {
   const counts = new Map<string, number>();
   for (const value of values) {
@@ -393,10 +206,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("start");
     const endDate = searchParams.get("end");
-    const cidParam = searchParams.get("cid") || LOGSCALE_CID;
-    const objectiveParam = searchParams.get("objective");
-    const tacticParam = searchParams.get("tactic");
-    const severityParam = searchParams.get("severity");
 
     if (!startDate || !endDate) {
       return NextResponse.json({ error: "Missing date parameters" }, { status: 400 });
@@ -427,6 +236,7 @@ export async function GET(request: Request) {
       if (severity) {
         severityCounts.set(severity, (severityCounts.get(severity) || 0) + 1);
       }
+      const severityLabel = severity || "-";
 
       if (alert.user_name) users.push(alert.user_name);
       else if (alert.user_principal) users.push(alert.user_principal);
@@ -448,7 +258,7 @@ export async function GET(request: Request) {
           inc_no: alert.comment,
           host_name: hostName,
           process_name: processName,
-          severity,
+          severity: severityLabel,
           status
         });
       }
@@ -458,7 +268,7 @@ export async function GET(request: Request) {
           inc_no: alert.comment || "-",
           host_name: hostName,
           process_name: alert.filename || processName,
-          severity,
+          severity: severityLabel,
           status
         });
       }
@@ -468,44 +278,11 @@ export async function GET(request: Request) {
       .map(([severity, count]) => ({ severity, count }))
       .filter((row) => row.severity && row.severity !== "Unknown")
       .sort((a, b) => b.count - a.count);
-
-    let topUsersFinal = buildTopRows(users);
-    try {
-      const logscaleTopUsers = await fetchLogScaleTopUsers({
-        cid: cidParam,
-        objective: objectiveParam,
-        tactic: tacticParam,
-        severity: severityParam,
-        start: startRange.start,
-        end: endRange.end
-      });
-      if (logscaleTopUsers && logscaleTopUsers.length > 0) {
-        topUsersFinal = logscaleTopUsers;
-      }
-    } catch (logscaleError: any) {
-      console.error("LogScale top users error:", logscaleError?.message || logscaleError);
-    }
-    let topHostsFinal = buildTopRows(hosts);
-    try {
-      const logscaleTopHosts = await fetchLogScaleTopHosts({
-        cid: cidParam,
-        objective: objectiveParam,
-        tactic: tacticParam,
-        severity: severityParam,
-        start: startRange.start,
-        end: endRange.end
-      });
-      if (logscaleTopHosts && logscaleTopHosts.length > 0) {
-        topHostsFinal = logscaleTopHosts;
-      }
-    } catch (logscaleError: any) {
-      console.error("LogScale top hosts error:", logscaleError?.message || logscaleError);
-    }
-
+    
     return NextResponse.json({
       severitySummary,
-      topUsers: topUsersFinal,
-      topHosts: topHostsFinal,
+      topUsers: buildTopRows(users),
+      topHosts: buildTopRows(hosts),
       incidentSummary,
       endpointDetections
     });
@@ -514,7 +291,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error?.message || "Unknown error" }, { status: 500 });
   }
 }
-
-
-
 
