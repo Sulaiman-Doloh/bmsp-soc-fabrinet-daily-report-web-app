@@ -72,10 +72,15 @@ Export PDF
 สร้างไฟล์ `.env`
 
 ```
-ALIENVAULT_API_KEY=
+# AlienVault Config
+ALIENVAULT_SUBDOMAIN=#########################################
+ALIENVAULT_CLIENT_ID=#########################################
+ALIENVAULT_CLIENT_SECRET=#######################################
 
-CYWARE_API_KEY=
 
+# Cyware Config
+CYWARE_ACCESS_ID=#############################################
+CYWARE_SECRET_KEY=#############################################
 CYWARE_BASE_URL=https://bangkokmsp.cyware.com/cftrapi
 ```
 
