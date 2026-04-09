@@ -1,37 +1,322 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fabrinet Daily Report
 
-## Getting Started
+## 📌 Overview
 
-First, run the development server:
+**Fabrinet Daily Report** เป็นระบบอัตโนมัติสำหรับสร้าง SOC Daily Report โดยดึงข้อมูลจาก Security Platform ผ่าน API ได้แก่
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+* AlienVault
+* Cyware
+
+ระบบจะรวบรวมข้อมูล → ประมวลผล → สร้างรายงาน → Export เป็น **PDF** เพื่อใช้งานใน Daily SOC Report
+
+---
+
+## 🎯 Features
+
+* ดึงข้อมูลจาก AlienVault API
+* ดึงข้อมูลจาก Cyware API
+* Generate SOC Daily Report อัตโนมัติ
+* Export รายงานเป็น PDF
+* UI สำหรับเลือกวันที่ Report
+* Docker Ready
+* Deploy บน Server ได้ทันที
+* ลด Manual Work ของ SOC Analyst
+* ลด Human Error ใน Daily Report
+
+---
+
+## 🏗️ Tech Stack
+
+* Next.js (App Router)
+* TypeScript
+* Tailwind CSS
+* Docker
+* REST API Integration
+
+---
+
+## 📂 Project Structure
+
+```
+├── app
+│   ├── api
+│   │   └── soc-report
+│   │       └── route.ts
+│   ├── dashboard
+│   │   ├── report
+│   │   │   └── page.tsx
+│   │   └── layout.tsx
+│   ├── report
+│   │   └── page.tsx
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx
+│
+├── components
+│   ├── report-table
+│   │   ├── IncidentAlarm.tsx
+│   │   ├── IncidentPending.tsx
+│   │   └── RecommendAction.tsx
+│   │
+│   └── sidebar
+│       └── Sidebar.tsx
+│
+├── context
+│   └── ReportContext.tsx
+│
+├── public/images
+│
+├── types
+│   └── index.ts
+│
+├── .env
+├── package.json
+├── tsconfig.json
+└── README.md
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ⚙️ Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+สร้างไฟล์ `.env`
 
-## Learn More
+```
+ALIENVAULT_API_KEY=
 
-To learn more about Next.js, take a look at the following resources:
+CYWARE_API_KEY=
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+CYWARE_BASE_URL=https://bangkokmsp.cyware.com/cftrapi
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🚀 Run Project (Docker)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+docker compose up --build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# bmsp-soc-fabrinet-daily-report
+Run background
+
+```bash
+docker compose up -d --build
+```
+
+Check container
+
+```bash
+docker ps
+```
+
+Check logs
+
+```bash
+docker logs -f <container-name>
+```
+
+---
+
+## 🐳 Dockerfile
+
+```
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+EXPOSE 3000
+
+CMD ["npm","start"]
+```
+
+---
+
+## 🐳 docker-compose.yml
+
+```
+version: "3"
+
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    restart: always
+```
+
+---
+
+## 🖥️ Deploy on Server
+
+### 1. Create Project Folder
+
+```
+mkdir fabrinet-daily-report
+cd fabrinet-daily-report
+```
+
+### 2. Clone Project
+
+```
+git clone <your-repo>
+cd project
+```
+
+### 3. Create .env
+
+```
+nano .env
+```
+
+### 4. Create Dockerfile
+
+```
+nano Dockerfile
+```
+
+Paste Dockerfile content
+
+---
+
+### 5. Create docker-compose
+
+```
+nano docker-compose.yml
+```
+
+---
+
+### 6. Build & Run
+
+```
+docker compose up -d --build
+```
+
+---
+
+### 7. Check Container
+
+```
+docker ps
+```
+
+---
+
+### 8. Check Logs
+
+```
+docker logs -f bmsp-soc-fabrinet-daily-report-web-app-web-1
+```
+
+---
+
+## 📄 Output
+
+ระบบจะสร้างรายงานเป็น:
+
+* SOC Daily Report
+* Incident Alarm Summary
+* Incident Pending
+* Recommend Action
+
+Export เป็น:
+
+```
+PDF Report
+```
+
+---
+
+## 🔄 Cyware API Renewal
+
+หาก API ของ Cyware หมดอายุ:
+
+1. Generate API ใหม่จากระบบ Cyware
+2. นำ API ใหม่มาแทนค่าใน `.env`
+
+```
+CYWARE_API_KEY=NEW_API_KEY
+```
+
+⚠️ ไม่ต้องแก้ค่า BASE URL
+
+ใช้ค่าเดิม:
+
+```
+CYWARE_BASE_URL=https://bangkokmsp.cyware.com/cftrapi
+```
+
+---
+
+### ❗ Important
+
+URL ที่ได้จากการ generate API ใหม่:
+
+```
+https://bangkokmsp.cyware.com/cftrapi/openapi
+```
+
+URL นี้ใช้สำหรับ **Documentation / Read Only เท่านั้น**
+
+แต่ระบบนี้ใช้:
+
+```
+https://bangkokmsp.cyware.com/cftrapi
+```
+
+ซึ่งสามารถ:
+
+* Read Data
+* Update Data
+* Generate Report
+
+ได้ครบ
+
+---
+
+## 🧠 System Workflow
+
+```
+AlienVault API
+        ↓
+Cyware API
+        ↓
+Data Processing
+        ↓
+Generate SOC Report
+        ↓
+Render UI
+        ↓
+Export PDF
+```
+
+---
+
+## 🎯 Purpose
+
+ระบบนี้ถูกพัฒนาเพื่อ:
+
+* Automate SOC Daily Report
+* ลดเวลาการทำรายงาน
+* ลด Human Error
+* เพิ่มความถูกต้องของข้อมูล
+* ใช้งานง่ายสำหรับ SOC Analyst
+
+---
+
+## 👨‍💻 Author
+
+BMSP SOC Team
+
+---
+
+## 🏢 Project
+
+Fabrinet SOC Daily Report Automation
